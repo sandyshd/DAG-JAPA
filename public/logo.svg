@@ -1,0 +1,13 @@
+<svg viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg" width="200" height="200">
+  <!-- Green oval shape (top right) -->
+  <ellipse cx="850" cy="150" rx="120" ry="100" fill="#a4e631"/>
+  
+  <!-- Red/Pink large triangle shape (left-top) -->
+  <path d="M 350 120 L 650 350 L 350 400 Z" fill="#e31d23"/>
+  
+  <!-- Orange large diamond shape (center) -->
+  <path d="M 400 400 L 700 400 L 550 700 L 250 700 Z" fill="#f5a623"/>
+  
+  <!-- Cyan circle shape (right) -->
+  <circle cx="750" cy="550" r="140" fill="#00bcd4"/>
+</svg>

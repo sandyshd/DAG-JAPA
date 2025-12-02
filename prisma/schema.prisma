@@ -1,0 +1,194 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String     @id @default(cuid())
+  userId    String     @unique  // User-friendly ID like USR-123456
+  email     String     @unique
+  password  String     // Encrypted password for NextAuth
+  fullName  String
+  phone     String?
+  avatar    String?    // Profile picture URL
+  role      Role       @default(USER)
+  
+  // Profile info
+  nationalId String?
+  education  String?
+  description String?
+  
+  // NextAuth Relations
+  accounts      Account[]
+  sessions      Session[]
+  
+  // Relations
+  applications   Application[]
+  englishTest    EnglishTest?
+  adminActivity  AdminActivity[]
+  reviewedApplications Application[] @relation("ApplicationReviewer")
+  passwordResetTokens PasswordResetToken[]
+  
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+}
+
+model Account {
+  id                 String  @id @default(cuid())
+  userId             String
+  type               String
+  provider           String
+  providerAccountId  String
+  refresh_token      String?  @db.Text
+  access_token       String?  @db.Text
+  expires_at         Int?
+  token_type         String?
+  scope              String?
+  id_token           String?  @db.Text
+  session_state      String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model PasswordResetToken {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([token])
+  @@index([userId])
+}
+
+enum Role {
+  USER
+  ADMIN
+  MODERATOR
+}
+
+model Application {
+  id        String     @id @default(cuid())
+  applicationId String   @unique  // User-friendly ID like APP-603756
+  userId    String
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // Module selection
+  moduleId  Int
+  module    Module     @relation(fields: [moduleId], references: [id])
+  
+  // Application status
+  status    ApplicationStatus @default(PENDING)
+  
+  // Form data (stored as JSON for flexibility)
+  formData  Json       // Stores module-specific fields
+  
+  // Documents
+  cvUrl     String?
+  supportingDocs String?  // JSON array of document URLs
+  
+  // Review
+  reviewedBy String?
+  adminReviewer User?    @relation("ApplicationReviewer", fields: [reviewedBy], references: [id])
+  reviewComment String?
+  reviewedAt DateTime?
+  
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+
+  @@index([userId])
+  @@index([moduleId])
+  @@index([status])
+}
+
+model Module {
+  id        Int        @id @default(autoincrement())
+  name      String     @unique
+  description String
+  shortDesc String?    // Short description for listings
+  fullDesc  String?    // Full description for detail page
+  icon      String?    // Icon name or URL
+  requirement String    // e.g., "Business plan + $150K investment"
+  color     String     // Gradient color class
+  duration  String?    // e.g., "3-6 months"
+  successRate String?  // e.g., "92%"
+  avgIncome String?    // e.g., "$60,000+"
+  
+  // Module-specific fields (stored as JSON)
+  fields    Json?      // Array of field definitions
+  benefits  Json?      // Array of benefits
+  requirements Json?   // Array of requirements
+  process   Json?      // Array of process steps
+  testimonials Json?   // Array of testimonials
+  faqs      Json?      // Array of FAQs
+  
+  applications Application[]
+  
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+}
+
+enum ApplicationStatus {
+  PENDING
+  UNDER_REVIEW
+  APPROVED
+  REJECTED
+  ARCHIVED
+}
+
+model EnglishTest {
+  id        String     @id @default(cuid())
+  userId    String     @unique
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // Test info
+  score     Int?       // 0-100
+  passed    Boolean    @default(false)
+  testData  Json?      // Store test answers/details
+  
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+  completedAt DateTime?
+}
+
+model AdminActivity {
+  id        String     @id @default(cuid())
+  adminId   String
+  admin     User       @relation(fields: [adminId], references: [id], onDelete: Cascade)
+  
+  action    String     // e.g., "REVIEWED_APPLICATION", "UPDATED_MODULE"
+  targetId  String?    // ID of the resource affected
+  targetType String?   // e.g., "APPLICATION", "USER"
+  details   Json?      // Additional context
+  
+  createdAt  DateTime   @default(now())
+
+  @@index([adminId])
+  @@index([createdAt])
+}
