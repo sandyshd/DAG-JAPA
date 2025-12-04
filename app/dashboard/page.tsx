@@ -3,9 +3,10 @@
 import React, { useState, useEffect } from 'react';
 import { useSession, signOut } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
+import Logo from '@/app/components/Logo';
 import {
   User, Mail, Phone, MapPin,
-  Menu, LogOut, Globe, FileText,
+  Menu, LogOut, FileText,
   Download, HelpCircle, Lock, Bell,
   Settings, ChevronRight, X, AlertCircle
 } from 'lucide-react';
@@ -282,15 +283,7 @@ export default function Dashboard() {
         <div className="p-6 border-b">
           <div className="flex items-center justify-between">
             {sidebarOpen && (
-              <div className="flex items-center space-x-3">
-                <div className="w-10 h-10 bg-gradient-to-br from-green-600 to-green-800 rounded-lg flex items-center justify-center">
-                  <Globe className="w-6 h-6 text-white" />
-                </div>
-                <div>
-                  <div className="font-bold text-sm">Developing Africa</div>
-                  <div className="text-xs text-green-600">User Portal</div>
-                </div>
-              </div>
+              <Logo variant="compact" clickable={false} />
             )}
             <button onClick={() => setSidebarOpen(!sidebarOpen)} className="text-gray-500 hover:text-gray-700">
               <Menu className="w-5 h-5" />

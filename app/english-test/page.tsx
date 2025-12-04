@@ -3,7 +3,8 @@
 import React, { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
-import { Globe, Send, AlertCircle, ArrowLeft, CheckCircle } from 'lucide-react';
+import Logo from '@/app/components/Logo';
+import { Send, AlertCircle, ArrowLeft, CheckCircle } from 'lucide-react';
 
 export default function EnglishTestPage() {
   const { data: session, status } = useSession();
@@ -146,15 +147,7 @@ export default function EnglishTestPage() {
       <nav className="bg-white shadow-sm sticky top-0 z-50 mb-8 rounded-xl max-w-4xl mx-auto">
         <div className="px-6 py-4">
           <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 bg-gradient-to-br from-green-600 to-green-800 rounded-lg flex items-center justify-center">
-                <Globe className="w-6 h-6 text-white" />
-              </div>
-              <div>
-                <div className="font-bold text-lg text-gray-800">Developing Africa</div>
-                <div className="text-xs text-green-600 font-semibold">ENGLISH TEST</div>
-              </div>
-            </div>
+            <Logo variant="full" href="/" clickable={true} />
             <button
               onClick={handleBackToDashboard}
               className="flex items-center space-x-2 text-gray-600 hover:text-gray-900 transition"

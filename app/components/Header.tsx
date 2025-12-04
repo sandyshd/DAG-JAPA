@@ -2,9 +2,9 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import Image from 'next/image';
 import { Menu, X, ArrowRight } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import Logo from './Logo';
 
 interface HeaderProps {
   onModuleSelect?: (moduleId: number) => void;
@@ -40,21 +40,7 @@ export default function Header({ onModuleSelect }: HeaderProps) {
       <div className="container mx-auto px-4">
         <div className="flex items-center justify-between">
           {/* Logo */}
-          <Link href="/" className="flex items-center space-x-3 cursor-pointer">
-            <div className="w-14 h-14 relative flex-shrink-0 hover:opacity-90 transition">
-              <Image
-                src="/dag_logo.JPG"
-                alt="Developing Africa JAPA Initiative"
-                width={56}
-                height={56}
-                className="w-full h-full object-contain"
-              />
-            </div>
-            <div>
-              <div className="font-bold text-xl text-gray-800">Developing Africa</div>
-              <div className="text-xs text-green-600 font-semibold">JAPA INITIATIVE</div>
-            </div>
-          </Link>
+          <Logo href="/" />
 
           {/* Desktop Menu */}
           <div className="hidden md:flex items-center space-x-6">

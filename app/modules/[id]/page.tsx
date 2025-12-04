@@ -3,9 +3,10 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
+import Logo from '@/app/components/Logo';
 import {
   ArrowLeft, CheckCircle, AlertCircle, Clock, DollarSign, Users,
-  Star, ChevronDown, ChevronUp, Send, Globe, Target, TrendingUp,
+  Star, ChevronDown, ChevronUp, Send, Target, TrendingUp,
   BookOpen, MessageSquare,
   // icons for modules
   Briefcase, Cpu, Heart, Database, Lightbulb, Zap, Plane, Trophy, Leaf,
@@ -219,15 +220,7 @@ export default function ModuleDetailPage() {
               <ArrowLeft className="w-5 h-5 mr-2" />
               Back
             </button>
-            <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 bg-gradient-to-br from-green-600 to-green-800 rounded-lg flex items-center justify-center">
-                <Globe className="w-6 h-6 text-white" />
-              </div>
-              <div className="hidden md:block">
-                <div className="font-bold text-sm text-gray-800">Developing Africa</div>
-                <div className="text-xs text-green-600 font-semibold">JAPA INITIATIVE</div>
-              </div>
-            </div>
+            <Logo variant="full" href="/" clickable={true} />
           </div>
         </div>
       </nav>

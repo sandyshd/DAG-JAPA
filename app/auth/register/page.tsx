@@ -27,14 +27,13 @@ export default function RegisterPage() {
     moduleFields: {} as Record<string, string>,
     
     // Step 4: Payment
-    paymentMethod: 'card',
     agreedToTerms: false
   });
 
   const [errors, setErrors] = useState<Record<string, string | null | undefined>>({});
   const [emailVerified, setEmailVerified] = useState(false);
+  const [emailVerifying, setEmailVerifying] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [submitted, setSubmitted] = useState(false);
 
   const allModules = [
     { 
@@ -117,9 +116,6 @@ export default function RegisterPage() {
     { title: 'Module Details', icon: <FileText /> },
     { title: 'Payment', icon: <CreditCard /> }
   ];
-
-  // Application ID returned by server after submission
-  const [applicationId, setApplicationId] = useState<string | null>(null);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value, type } = e.target;
@@ -218,40 +214,49 @@ export default function RegisterPage() {
     if (validateStep(currentStep)) {
       setSubmitting(true);
       try {
-        // Prepare FormData for multipart file upload
-        const formDataToSend = new FormData();
-        formDataToSend.append('fullName', formData.fullName);
-        formDataToSend.append('email', formData.email);
-        formDataToSend.append('nationalId', formData.nationalId);
-        formDataToSend.append('phone', formData.phone);
-        formDataToSend.append('education', formData.education);
-        formDataToSend.append('description', formData.description);
-        formDataToSend.append('moduleId', formData.selectedModule?.toString() || '');
-        formDataToSend.append('moduleFields', JSON.stringify(formData.moduleFields));
-        if (formData.cvFile) {
-          formDataToSend.append('cvFile', formData.cvFile);
-        }
-
-        const response = await fetch('/api/applications', {
+        // Step 1: Create checkout session with Stripe
+        const checkoutResponse = await fetch('/api/payments/create-checkout-session', {
           method: 'POST',
-          body: formDataToSend,
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            email: formData.email,
+            fullName: formData.fullName,
+          }),
+          credentials: 'include', // Include session cookies in the request
         });
 
-        if (!response.ok) {
-          const data = await response.json();
-          setErrors({ submit: data.error || 'Failed to submit application' });
+        if (!checkoutResponse.ok) {
+          const data = await checkoutResponse.json();
+          setErrors({ submit: data.error || 'Failed to initialize payment' });
           setSubmitting(false);
           return;
         }
 
-        // read response so we can display server-generated applicationId
-        const data = await response.json().catch(() => ({}));
-        if (data && data.applicationId) {
-          setApplicationId(data.applicationId);
-        }
+        const { url, sessionId } = await checkoutResponse.json();
 
-        setSubmitting(false);
-        setSubmitted(true);
+        // Step 2: Save application data to session/cache for after payment
+        // Store in session storage to retrieve after payment redirect
+        sessionStorage.setItem('pendingApplicationData', JSON.stringify({
+          fullName: formData.fullName,
+          email: formData.email,
+          nationalId: formData.nationalId,
+          phone: formData.phone,
+          education: formData.education,
+          description: formData.description,
+          moduleId: formData.selectedModule,
+          moduleFields: formData.moduleFields,
+          cvFile: formData.cvFile,
+          stripeSessionId: sessionId,
+        }));
+
+        // Step 3: Redirect to Stripe checkout
+        if (url) {
+          window.location.href = url;
+        } else {
+          throw new Error('No checkout URL returned');
+        }
       } catch (err: any) {
         setErrors({ submit: err.message || 'An error occurred' });
         setSubmitting(false);
@@ -260,77 +265,6 @@ export default function RegisterPage() {
   };
 
   const selectedModuleData = allModules.find(m => m.id === formData.selectedModule);
-
-  if (submitted) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-green-50 via-white to-blue-50 py-12 px-4">
-        <div className="max-w-2xl mx-auto">
-          <div className="bg-white rounded-2xl shadow-xl p-12 text-center">
-            <div className="flex justify-center mb-6">
-              <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center">
-                <CheckCircle className="w-12 h-12 text-green-600" />
-              </div>
-            </div>
-            <h2 className="text-3xl font-bold text-gray-900 mb-2">Thank You!</h2>
-            <p className="text-xl font-semibold text-green-600 mb-4">Your application has been submitted successfully</p>
-            <div className="bg-gray-50 rounded-lg p-4 mb-6 border-2 border-green-200">
-              <p className="text-sm text-gray-600 mb-1">Application ID</p>
-              <p className="text-2xl font-bold text-gray-900">{applicationId}</p>
-            </div>
-            <p className="text-gray-600 mb-6">
-              Your application has been received and is being reviewed. You will receive the result via email within 4-5 working days.
-            </p>
-
-            <div className="bg-green-50 border border-green-200 rounded-lg p-6 mb-8 text-left">
-              <h3 className="font-semibold text-gray-900 mb-3">Next Steps:</h3>
-              <ol className="space-y-2 text-sm text-gray-700">
-                <li className="flex space-x-3">
-                  <span className="font-bold text-green-600">1</span>
-                  <span>Check your email for a message with the subject "Welcome to Developing Africa"</span>
-                </li>
-                <li className="flex space-x-3">
-                  <span className="font-bold text-green-600">2</span>
-                  <span>Click the secure password setup link in the email (valid for 24 hours)</span>
-                </li>
-                <li className="flex space-x-3">
-                  <span className="font-bold text-green-600">3</span>
-                  <span>Create a strong password that you can remember</span>
-                </li>
-                <li className="flex space-x-3">
-                  <span className="font-bold text-green-600">4</span>
-                  <span><a href="/auth/login" className="text-green-600 hover:underline font-semibold">Login to your account</a> with your email and new password</span>
-                </li>
-                <li className="flex space-x-3">
-                  <span className="font-bold text-green-600">5</span>
-                  <span>After login, you will be prompted to take the English Test</span>
-                </li>
-                <li className="flex space-x-3">
-                  <span className="font-bold text-green-600">6</span>
-                  <span>Receive application results within 4-5 working days via email</span>
-                </li>
-              </ol>
-            </div>
-
-            {/* Action Buttons */}
-            <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <a
-                href="/auth/login"
-                className="bg-green-600 text-white px-8 py-3 rounded-lg hover:bg-green-700 transition font-semibold text-center"
-              >
-                Go to Login
-              </a>
-              <a
-                href="/"
-                className="bg-gray-300 text-gray-900 px-8 py-3 rounded-lg hover:bg-gray-400 transition font-semibold text-center"
-              >
-                Back to Home
-              </a>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-50 via-white to-blue-50 py-12 px-4">
@@ -437,12 +371,14 @@ export default function RegisterPage() {
                     />
                     <button
                       type="button"
+                      disabled={emailVerifying || emailVerified}
                       onClick={async () => {
                         if (!formData.email.includes('@')) {
                           setErrors(prev => ({ ...prev, email: 'Valid email required' }));
                           return;
                         }
 
+                        setEmailVerifying(true);
                         try {
                           const response = await fetch('/api/auth/check-email', {
                             method: 'POST',
@@ -465,11 +401,31 @@ export default function RegisterPage() {
                         } catch (err) {
                           setErrors(prev => ({ ...prev, email: 'Failed to verify email. Please try again.' }));
                           setEmailVerified(false);
+                        } finally {
+                          setEmailVerifying(false);
                         }
                       }}
-                      className="px-6 py-3 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 transition"
+                      className={`px-6 py-3 rounded-lg font-semibold transition flex items-center gap-2 ${
+                        emailVerified 
+                          ? 'bg-green-500 text-white cursor-default' 
+                          : emailVerifying
+                          ? 'bg-blue-600 text-white cursor-wait'
+                          : 'bg-green-600 text-white hover:bg-green-700'
+                      } ${(emailVerifying || emailVerified) ? 'opacity-75' : ''}`}
                     >
-                      {emailVerified ? '✓ Verified' : 'Verify'}
+                      {emailVerifying ? (
+                        <>
+                          <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                          Verifying...
+                        </>
+                      ) : emailVerified ? (
+                        <>
+                          <CheckCircle className="w-4 h-4" />
+                          ✓ Verified
+                        </>
+                      ) : (
+                        'Verify'
+                      )}
                     </button>
                   </div>
                   {errors.email && (
@@ -884,20 +840,6 @@ export default function RegisterPage() {
               </div>
 
               <div className="space-y-6">
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Payment Method</label>
-                  <select
-                    name="paymentMethod"
-                    value={formData.paymentMethod}
-                    onChange={handleInputChange}
-                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
-                  >
-                    <option value="card">Credit/Debit Card</option>
-                    <option value="paypal">PayPal</option>
-                    <option value="transfer">Bank Transfer</option>
-                  </select>
-                </div>
-
                 <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6">
                   <h3 className="font-bold text-gray-900 mb-4">Important Information</h3>
                   <ul className="space-y-3 text-sm text-gray-700">
