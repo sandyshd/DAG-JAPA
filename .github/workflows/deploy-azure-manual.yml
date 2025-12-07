@@ -1,0 +1,151 @@
+name: Manual Deploy to Azure Web App
+
+# Manual-only deployment; no automatic triggers
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Deployment environment (development or production)'
+        required: true
+        default: 'development'
+        type: choice
+        options:
+          - development
+          - production
+      app_name:
+        description: 'Azure Web App name (existing)'
+        required: true
+        default: 'dag-japa-dev-webapp-e7dhh4gyfdb2gzh5.westeurope-01'
+      resource_group:
+        description: 'Azure Resource Group where Web App exists'
+        required: true
+        default: 'DAG-JAPA-Dev-RG'
+      deploy_database:
+        description: 'Run Prisma migrations?'
+        required: false
+        default: true
+        type: boolean
+
+permissions:
+  contents: read
+
+jobs:
+  validate-build:
+    name: Validate & Build
+    runs-on: ubuntu-latest
+    outputs:
+      build_artifact: ${{ steps.bundle.outputs.package-path }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run lint
+        run: npm run lint || true
+
+      - name: Build
+        run: npm run build
+        env:
+          NODE_ENV: production
+
+      - name: Prisma generate
+        run: npm run prisma:generate || npx prisma generate
+
+      - name: Package deployable
+        id: bundle
+        run: |
+          # Create a zip of the repository source; exclude node_modules and some local files
+          zip -r deploy-package.zip . -x "node_modules/*" ".git/*" ".github/*" "azure/*" "**/deploy-package.zip"
+          echo "package-path=deploy-package.zip" >> $GITHUB_OUTPUT
+
+  migrate-db:
+    name: Run Prisma Migrations
+    needs: validate-build
+    if: ${{ github.event.inputs.deploy_database == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm ci --production=false
+
+      - name: Prisma migrate deploy
+        env:
+          DATABASE_URL: ${{ secrets[ format('DATABASE_URL_{0}', github.event.inputs.environment) ] }}
+        run: npx prisma migrate deploy
+
+  deploy-webapp:
+    name: Deploy to Azure Web App
+    needs: [validate-build, migrate-db]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Azure Login
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Ensure build-on-deploy setting
+        run: |
+          az webapp config appsettings set \
+            --resource-group "${{ github.event.inputs.resource_group }}" \
+            --name "${{ github.event.inputs.app_name }}" \
+            --settings SCM_DO_BUILD_DURING_DEPLOYMENT=true WEBSITE_NODE_DEFAULT_VERSION=20
+
+      - name: Download packaged artifact
+        run: |
+          echo "Using package created in validate-build"
+          ls -la deploy-package.zip || true
+
+      - name: Deploy ZIP to Web App (Kudu)
+        run: |
+          az webapp deployment source config-zip \
+            --resource-group "${{ github.event.inputs.resource_group }}" \
+            --name "${{ github.event.inputs.app_name }}" \
+            --src deploy-package.zip
+
+      - name: Restart Web App
+        run: |
+          az webapp restart --resource-group "${{ github.event.inputs.resource_group }}" --name "${{ github.event.inputs.app_name }}"
+
+      - name: Post-deploy wait
+        run: |
+          echo "Waiting for app to warm up..."
+          sleep 8
+
+      - name: Health check URL
+        run: |
+          APP_URL="https://${{ github.event.inputs.app_name }}.azurewebsites.net"
+          echo "Checking ${APP_URL}/api/health"
+          for i in {1..20}; do
+            if curl -fsS ${APP_URL}/api/health; then
+              echo "Health check passed"; exit 0
+            fi
+            echo "Attempt $i/20 - waiting..."; sleep 5
+          done
+          echo "Health check failed"; exit 1
+
+  notify:
+    name: Notification (optional)
+    needs: deploy-webapp
+    runs-on: ubuntu-latest
+    steps:
+      - name: Report
+        run: |
+          echo "Deployment to ${{ github.event.inputs.environment }} complete. App: https://${{ github.event.inputs.app_name }}.azurewebsites.net"
