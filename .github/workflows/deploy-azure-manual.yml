@@ -69,6 +69,11 @@ jobs:
           # Create a zip of the repository source; exclude node_modules and some local files
           zip -r deploy-package.zip . -x "node_modules/*" ".git/*" ".github/*" "azure/*" "**/deploy-package.zip"
           echo "package-path=deploy-package.zip" >> $GITHUB_OUTPUT
+      - name: Upload deploy package
+        uses: actions/upload-artifact@v4
+        with:
+          name: deploy-package
+          path: deploy-package.zip
 
   migrate-db:
     name: Run Prisma Migrations
@@ -112,17 +117,19 @@ jobs:
             --name "${{ github.event.inputs.app_name }}" \
             --settings SCM_DO_BUILD_DURING_DEPLOYMENT=true WEBSITE_NODE_DEFAULT_VERSION=20
 
-      - name: Download packaged artifact
-        run: |
-          echo "Using package created in validate-build"
-          ls -la deploy-package.zip || true
+      - name: Download deploy package
+        uses: actions/download-artifact@v4
+        with:
+          name: deploy-package
+          path: .
 
-      - name: Deploy ZIP to Web App (Kudu)
+      - name: Deploy ZIP to Web App
         run: |
-          az webapp deployment source config-zip \
+          # Use the newer `az webapp deploy` command (replaces deprecated config-zip)
+          az webapp deploy \
             --resource-group "${{ github.event.inputs.resource_group }}" \
             --name "${{ github.event.inputs.app_name }}" \
-            --src deploy-package.zip
+            --src-path deploy-package.zip
 
       - name: Restart Web App
         run: |
@@ -152,4 +159,4 @@ jobs:
     steps:
       - name: Report
         run: |
-          echo "Deployment to ${{ github.event.inputs.environment }} complete. App: https://${{ github.event.inputs.app_name }}.azurewebsites.net"
+          echo "Deployment to ${{ github.event.inputs.environment }} complete. App: https://${{ github.event.inputs.app_unique_name }}.azurewebsites.net"
