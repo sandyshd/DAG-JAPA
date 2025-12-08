@@ -1,5 +1,5 @@
 name: Manual Deploy to Azure Web App
-# Manual-only deployment; no automatic triggers
+
 on:
   workflow_dispatch:
     inputs:
@@ -62,9 +62,10 @@ jobs:
       - name: Prisma generate
         run: npm run prisma:generate || npx prisma generate
 
-      - name: Prune dev dependencies
+      - name: Debug Next.js runtime files
         run: |
-          npm prune --production
+          echo "Listing contents of node_modules/next/server to verify require-hook.js exists..."
+          ls -R node_modules/next/server || true
 
       - name: Package deployable (built artifacts)
         id: bundle
