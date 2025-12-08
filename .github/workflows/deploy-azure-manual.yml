@@ -1,4 +1,4 @@
-name: Manual Deploy to Azure Web App
+name: Manual Deploy to Azure Web App (Windows)
 
 on:
   workflow_dispatch:
@@ -98,7 +98,7 @@ jobs:
         run: npx prisma migrate deploy
 
   deploy-webapp:
-    name: Deploy to Azure Web App
+    name: Deploy to Azure Web App (Windows)
     needs: [validate-build]
     runs-on: ubuntu-latest
     steps:
@@ -110,12 +110,12 @@ jobs:
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-      - name: Force Node 20 runtime
+      - name: Configure Node 20 runtime (Windows)
         run: |
           az webapp config set \
             --resource-group "${{ github.event.inputs.resource_group }}" \
             --name "${{ github.event.inputs.app_name }}" \
-            --linux-fx-version "NODE|20-lts"
+            --windows-fx-version "NODE|20-lts"
 
       - name: Ensure app settings
         run: |
@@ -124,25 +124,18 @@ jobs:
             --name "${{ github.event.inputs.app_name }}" \
             --settings SCM_DO_BUILD_DURING_DEPLOYMENT=false WEBSITE_RUN_FROM_PACKAGE=1 NODE_ENV=production
 
-      - name: Ensure startup command
-        run: |
-          az webapp config set \
-            --resource-group "${{ github.event.inputs.resource_group }}" \
-            --name "${{ github.event.inputs.app_name }}" \
-            --startup-file "npm run start"
-
       - name: Download deploy package
         uses: actions/download-artifact@v4
         with:
           name: deploy-package
           path: .
 
-      - name: Deploy ZIP to Web App
+      - name: Deploy ZIP to Web App (Windows)
         run: |
-          az webapp deploy \
+          az webapp deployment source config-zip \
             --resource-group "${{ github.event.inputs.resource_group }}" \
             --name "${{ github.event.inputs.app_name }}" \
-            --src-path deploy-package.zip
+            --src deploy-package.zip
 
       - name: Restart Web App
         run: |
