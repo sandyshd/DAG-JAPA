@@ -15,6 +15,10 @@ on:
       app_name:
         description: 'Azure Web App name (existing)'
         required: true
+        default: 'dag-japa-dev-webapp'
+      app_unique_name:
+        description: 'Azure Web App unique name (existing)'
+        required: true
         default: 'dag-japa-dev-webapp-e7dhh4gyfdb2gzh5.westeurope-01'
       resource_group:
         description: 'Azure Resource Group where Web App exists'
@@ -131,7 +135,7 @@ jobs:
 
       - name: Health check URL
         run: |
-          APP_URL="https://${{ github.event.inputs.app_name }}.azurewebsites.net"
+          APP_URL="https://${{ github.event.inputs.app_unique_name }}.azurewebsites.net"
           echo "Checking ${APP_URL}/api/health"
           for i in {1..20}; do
             if curl -fsS ${APP_URL}/api/health; then
