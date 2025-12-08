@@ -132,6 +132,25 @@ jobs:
             --name "${{ github.event.inputs.app_name }}" \
             --startup-file "npm start"
 
+      - name: Wait for Web App to become ready
+        run: |
+          # After changing app settings, the SCM container may restart. Wait until the Web App reports 'Running'.
+          set -e
+          RG="${{ github.event.inputs.resource_group }}"
+          APP="${{ github.event.inputs.app_name }}"
+          echo "Waiting for web app $APP in resource group $RG to report state 'Running'..."
+          for i in {1..18}; do
+            state=$(az webapp show --resource-group "$RG" --name "$APP" --query state -o tsv || echo "")
+            echo "Current state: '$state' (attempt $i)"
+            if [ "$state" = "Running" ]; then
+              echo "Web App is Running"
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "Timed out waiting for Web App to become Running after app settings change." >&2
+          exit 1
+
       - name: Download deploy package
         uses: actions/download-artifact@v4
         with:
