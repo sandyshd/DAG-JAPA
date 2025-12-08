@@ -1,5 +1,4 @@
 name: Manual Deploy to Azure Web App
-
 # Manual-only deployment; no automatic triggers
 on:
   workflow_dispatch:
@@ -55,26 +54,29 @@ jobs:
       - name: Run lint
         run: npm run lint || true
 
-      - name: Build
+      - name: Build Next.js
         run: npm run build
         env:
           NODE_ENV: production
 
       - name: Prisma generate
         run: npm run prisma:generate || npx prisma generate
-      - name: Prepare production dependencies
+
+      - name: Install production dependencies
         run: |
-          # Install production dependencies only to keep package small
-          npm ci --production
+          # Reinstall only production deps, but keep built artifacts
+          rm -rf node_modules
+          npm ci --only=production
 
       - name: Package deployable (built artifacts)
         id: bundle
         run: |
-          # Create a zip of the built application containing only necessary runtime files
           rm -f deploy-package.zip || true
           zip -r deploy-package.zip \
-            .next package.json public next.config.js prisma node_modules package-lock.json README.md -x "**/node_modules/.cache/*" 
+            .next package.json package-lock.json public next.config.js prisma node_modules README.md \
+            -x "**/node_modules/.cache/*"
           echo "package-path=deploy-package.zip" >> $GITHUB_OUTPUT
+
       - name: Upload deploy package
         uses: actions/upload-artifact@v4
         with:
@@ -89,15 +91,12 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-
       - name: Install dependencies
-        run: npm ci --production=false
-
+        run: npm ci
       - name: Prisma migrate deploy
         env:
           DATABASE_URL: ${{ secrets[ format('DATABASE_URL_{0}', github.event.inputs.environment) ] }}
@@ -116,41 +115,19 @@ jobs:
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-      - name: Ensure app settings for run-from-package
+      - name: Ensure app settings
         run: |
-          # Disable Kudu build and enable run-from-package so the pre-built package is used
-          # Also set NODE_ENV=production and skip Prisma engine checks (migrations run separately in CI)
           az webapp config appsettings set \
             --resource-group "${{ github.event.inputs.resource_group }}" \
             --name "${{ github.event.inputs.app_name }}" \
-            --settings SCM_DO_BUILD_DURING_DEPLOYMENT=false WEBSITE_RUN_FROM_PACKAGE=1 WEBSITE_NODE_DEFAULT_VERSION=20 NODE_ENV=production PRISMA_SKIP_ENGINE_CHECK=true
+            --settings SCM_DO_BUILD_DURING_DEPLOYMENT=false WEBSITE_RUN_FROM_PACKAGE=1 NODE_ENV=production
 
       - name: Ensure startup command
         run: |
-          # Set startup command to run the Next.js server
           az webapp config set \
             --resource-group "${{ github.event.inputs.resource_group }}" \
             --name "${{ github.event.inputs.app_name }}" \
-            --startup-file "npm start"
-
-      - name: Wait for Web App to become ready
-        run: |
-          # After changing app settings, the SCM container may restart. Wait until the Web App reports 'Running'.
-          set -e
-          RG="${{ github.event.inputs.resource_group }}"
-          APP="${{ github.event.inputs.app_name }}"
-          echo "Waiting for web app $APP in resource group $RG to report state 'Running'..."
-          for i in {1..18}; do
-            state=$(az webapp show --resource-group "$RG" --name "$APP" --query state -o tsv || echo "")
-            echo "Current state: '$state' (attempt $i)"
-            if [ "$state" = "Running" ]; then
-              echo "Web App is Running"
-              exit 0
-            fi
-            sleep 10
-          done
-          echo "Timed out waiting for Web App to become Running after app settings change." >&2
-          exit 1
+            --startup-file "npm run start"
 
       - name: Download deploy package
         uses: actions/download-artifact@v4
@@ -160,7 +137,6 @@ jobs:
 
       - name: Deploy ZIP to Web App
         run: |
-          # Use the newer `az webapp deploy` command (replaces deprecated config-zip)
           az webapp deploy \
             --resource-group "${{ github.event.inputs.resource_group }}" \
             --name "${{ github.event.inputs.app_name }}" \
@@ -170,17 +146,11 @@ jobs:
         run: |
           az webapp restart --resource-group "${{ github.event.inputs.resource_group }}" --name "${{ github.event.inputs.app_name }}"
 
-      - name: Post-deploy wait
-        run: |
-          echo "Waiting for app to warm up..."
-          sleep 8
-
       - name: Health check URL
         run: |
           APP_URL="https://${{ github.event.inputs.app_unique_name }}.azurewebsites.net"
           RG="${{ github.event.inputs.resource_group }}"
           APP="${{ github.event.inputs.app_name }}"
-          KUDU_URL="https://${{ github.event.inputs.app_unique_name }}.scm.azurewebsites.net"
           echo "Checking ${APP_URL}/api/health"
           for i in {1..50}; do
             http_code=$(curl -s -o /dev/null -w "%{http_code}" ${APP_URL}/api/health)
@@ -189,14 +159,14 @@ jobs:
             fi
             echo "Attempt $i/50 - HTTP $http_code - waiting..."; sleep 6
           done
-          echo "Health check failed after 50 attempts (5 minutes). Fetching diagnostics..."
+          echo "Health check failed after 50 attempts (5 minutes)."
           echo ""
-          echo "=== App Service Stream Logs ==="
+          echo "=== Streaming App Service Logs for diagnostics ==="
           az webapp log tail --resource-group "$RG" --name "$APP" --lines 100 || true
           exit 1
 
   notify:
-    name: Notification (optional)
+    name: Notification
     needs: deploy-webapp
     runs-on: ubuntu-latest
     steps:
