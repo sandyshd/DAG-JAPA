@@ -64,7 +64,6 @@ jobs:
 
       - name: Install production dependencies
         run: |
-          # Reinstall only production deps, but keep built artifacts
           rm -rf node_modules
           npm ci --only=production
 
@@ -114,6 +113,13 @@ jobs:
         uses: azure/login@v1
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Force Node 20 runtime
+        run: |
+          az webapp config set \
+            --resource-group "${{ github.event.inputs.resource_group }}" \
+            --name "${{ github.event.inputs.app_name }}" \
+            --linux-fx-version "NODE|20-lts"
 
       - name: Ensure app settings
         run: |
