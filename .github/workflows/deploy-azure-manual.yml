@@ -62,10 +62,9 @@ jobs:
       - name: Prisma generate
         run: npm run prisma:generate || npx prisma generate
 
-      - name: Install production dependencies
+      - name: Prune dev dependencies
         run: |
-          rm -rf node_modules
-          npm ci --only=production
+          npm prune --production
 
       - name: Package deployable (built artifacts)
         id: bundle
