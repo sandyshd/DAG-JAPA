@@ -62,12 +62,18 @@ jobs:
 
       - name: Prisma generate
         run: npm run prisma:generate || npx prisma generate
+      - name: Prepare production dependencies
+        run: |
+          # Install production dependencies only to keep package small
+          npm ci --production
 
-      - name: Package deployable
+      - name: Package deployable (built artifacts)
         id: bundle
         run: |
-          # Create a zip of the repository source; exclude node_modules and some local files
-          zip -r deploy-package.zip . -x "node_modules/*" ".git/*" ".github/*" "azure/*" "**/deploy-package.zip"
+          # Create a zip of the built application containing only necessary runtime files
+          rm -f deploy-package.zip || true
+          zip -r deploy-package.zip \
+            .next package.json public next.config.js prisma node_modules package-lock.json README.md -x "**/node_modules/.cache/*" 
           echo "package-path=deploy-package.zip" >> $GITHUB_OUTPUT
       - name: Upload deploy package
         uses: actions/upload-artifact@v4
@@ -110,12 +116,21 @@ jobs:
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-      - name: Ensure build-on-deploy setting
+      - name: Ensure app settings for run-from-package
         run: |
+          # Disable Kudu build and enable run-from-package so the pre-built package is used
           az webapp config appsettings set \
             --resource-group "${{ github.event.inputs.resource_group }}" \
             --name "${{ github.event.inputs.app_name }}" \
-            --settings SCM_DO_BUILD_DURING_DEPLOYMENT=true WEBSITE_NODE_DEFAULT_VERSION=20
+            --settings SCM_DO_BUILD_DURING_DEPLOYMENT=false WEBSITE_RUN_FROM_PACKAGE=1 WEBSITE_NODE_DEFAULT_VERSION=20
+
+      - name: Ensure startup command
+        run: |
+          # Set startup command to run the Next.js server
+          az webapp config set \
+            --resource-group "${{ github.event.inputs.resource_group }}" \
+            --name "${{ github.event.inputs.app_name }}" \
+            --startup-file "npm start"
 
       - name: Download deploy package
         uses: actions/download-artifact@v4
