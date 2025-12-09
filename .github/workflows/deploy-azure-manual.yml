@@ -67,10 +67,11 @@ jobs:
         id: bundle
         run: |
           rm -f deploy-package.zip || true
-          # Create ZIP with all required files at root
+          # Create ZIP with all required files at root, excluding any existing .zip
           zip -r deploy-package.zip \
             .next package.json package-lock.json public next.config.js prisma node_modules README.md \
-            -x "**/node_modules/.cache/*"
+            -x "**/node_modules/.cache/*" \
+            -x "deploy-package.zip"
 
           # Validate that package.json is at root of ZIP
           if ! unzip -l deploy-package.zip | grep -q "package.json"; then
