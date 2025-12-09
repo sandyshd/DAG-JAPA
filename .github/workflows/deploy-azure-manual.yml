@@ -67,18 +67,28 @@ jobs:
         id: bundle
         run: |
           rm -f deploy-package.zip || true
-          # Create ZIP with all required files at root, excluding any existing .zip
+          # Create ZIP with minimal files; exclude node_modules (will be restored on App Service via post-deploy script)
+          # Include: built .next, package files, public assets, prisma schema/migrations, web.config, deploy script
           zip -r deploy-package.zip \
-            .next package.json package-lock.json public next.config.js prisma node_modules README.md \
-            -x "**/node_modules/.cache/*" \
-            -x "deploy-package.zip"
+            .next package.json package-lock.json public next.config.js prisma README.md web.config .deployment deploy.sh \
+            -x "**/node_modules/*" "**/node_modules/.cache/*" ".git/*" ".github/*" "deploy-package.zip"
 
-          # Validate that package.json is at root of ZIP
+          # Validate that key files are in the ZIP
+          echo "ZIP package created. Validating contents..."
           if ! unzip -l deploy-package.zip | grep -q "package.json"; then
-            echo "ERROR: package.json not found at root of ZIP"
+            echo "ERROR: package.json not found in ZIP"
+            exit 1
+          fi
+          if ! unzip -l deploy-package.zip | grep -q ".next/"; then
+            echo "ERROR: .next/ not found in ZIP"
+            exit 1
+          fi
+          if ! unzip -l deploy-package.zip | grep -q "web.config"; then
+            echo "ERROR: web.config not found in ZIP"
             exit 1
           fi
 
+          echo "ZIP validation passed."
           echo "package-path=deploy-package.zip" >> $GITHUB_OUTPUT
 
       - name: Upload deploy package
@@ -222,17 +232,18 @@ jobs:
           RG="${{ github.event.inputs.resource_group }}"
           APP="${{ github.event.inputs.app_name }}"
           echo "Checking ${APP_URL}/api/health"
-          for i in {1..50}; do
-            http_code=$(curl -s -o /dev/null -w "%{http_code}" ${APP_URL}/api/health)
+          echo "Note: First startup includes npm install, may take up to 10 minutes..."
+          for i in {1..100}; do
+            http_code=$(curl -s -o /dev/null -w "%{http_code}" ${APP_URL}/api/health 2>/dev/null || echo "000")
             if [ "$http_code" = "200" ]; then
               echo "Health check passed (HTTP 200)"; exit 0
             fi
-            echo "Attempt $i/50 - HTTP $http_code - waiting..."; sleep 6
+            echo "Attempt $i/100 - HTTP $http_code - waiting..."; sleep 6
           done
-          echo "Health check failed after 50 attempts (5 minutes)."
+          echo "Health check failed after 100 attempts (~10 minutes)."
           echo ""
           echo "=== Streaming App Service Logs for diagnostics ==="
-          az webapp log tail --resource-group "$RG" --name "$APP" --lines 100 || true
+          az webapp log tail --resource-group "$RG" --name "$APP" 2>/dev/null || echo "Could not fetch logs"
           exit 1
 
   notify:
