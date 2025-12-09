@@ -161,6 +161,10 @@ jobs:
             --settings STARTUP="npm start"
           
           echo "Startup command configured."
+          
+          # Verify the setting was applied
+          echo "Verifying STARTUP setting..."
+          az webapp config appsettings list --resource-group "$RG" --name "$APP" | grep -i "STARTUP" || echo "WARNING: STARTUP setting not found in app settings"
 
       - name: Download deploy package
         uses: actions/download-artifact@v4
@@ -234,6 +238,13 @@ jobs:
           APP_URL="https://${{ github.event.inputs.app_name }}.azurewebsites.net"
           RG="${{ github.event.inputs.resource_group }}"
           APP="${{ github.event.inputs.app_name }}"
+          
+          echo "Pre-health check diagnostics..."
+          echo "App URL: $APP_URL"
+          echo "Checking app settings for STARTUP..."
+          az webapp config appsettings list --resource-group "$RG" --name "$APP" | grep -i "STARTUP" || echo "WARNING: STARTUP not found"
+          
+          echo ""
           echo "Checking ${APP_URL}/api/health"
           echo "Note: First startup includes npm install, may take up to 10 minutes..."
           for i in {1..100}; do
@@ -241,12 +252,20 @@ jobs:
             if [ "$http_code" = "200" ]; then
               echo "Health check passed (HTTP 200)"; exit 0
             fi
-            echo "Attempt $i/100 - HTTP $http_code - waiting..."; sleep 6
+            if [ $((i % 10)) -eq 0 ]; then
+              echo "Still waiting... Attempt $i/100 - HTTP $http_code"
+            else
+              echo "Attempt $i/100 - HTTP $http_code"
+            fi
+            sleep 6
           done
           echo "Health check failed after 100 attempts (~10 minutes)."
           echo ""
           echo "=== App Service Deployment Logs for diagnostics ==="
           az webapp log deployment show --resource-group "$RG" --name "$APP" 2>/dev/null || echo "Could not fetch deployment logs"
+          echo ""
+          echo "=== Checking app settings ==="
+          az webapp config appsettings list --resource-group "$RG" --name "$APP" | head -20 || true
           exit 1
 
   notify:
