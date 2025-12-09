@@ -6,7 +6,7 @@ on:
       environment:
         description: 'Deployment environment (development or production)'
         required: true
-        default: 'production'
+        default: 'development'
         type: choice
         options:
           - development
@@ -117,19 +117,26 @@ jobs:
             --name "${{ github.event.inputs.app_name }}" \
             --windows-fx-version "NODE|20-lts"
 
-      - name: Ensure app settings
+      - name: Ensure app settings (base)
         run: |
           az webapp config appsettings set \
             --resource-group "${{ github.event.inputs.resource_group }}" \
             --name "${{ github.event.inputs.app_name }}" \
-            --settings SCM_DO_BUILD_DURING_DEPLOYMENT=false WEBSITE_RUN_FROM_PACKAGE=1 NODE_ENV=production
+            --settings SCM_DO_BUILD_DURING_DEPLOYMENT=false WEBSITE_RUN_FROM_PACKAGE=1 NODE_ENV=production WEBSITE_NODE_DEFAULT_VERSION=20-lts
 
-      - name: Ensure startup command (Windows)
+      - name: Ensure startup command (Windows, conditional)
         run: |
-          az webapp config set \
-            --resource-group "${{ github.event.inputs.resource_group }}" \
-            --name "${{ github.event.inputs.app_name }}" \
-            --startup-command "npm run start"
+          if [ "${{ github.event.inputs.environment }}" = "production" ]; then
+            az webapp config appsettings set \
+              --resource-group "${{ github.event.inputs.resource_group }}" \
+              --name "${{ github.event.inputs.app_name }}" \
+              --settings COMMAND="npm start"
+          else
+            az webapp config appsettings set \
+              --resource-group "${{ github.event.inputs.resource_group }}" \
+              --name "${{ github.event.inputs.app_name }}" \
+              --settings COMMAND="npm run dev"
+          fi
 
       - name: Download deploy package
         uses: actions/download-artifact@v4
