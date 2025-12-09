@@ -63,13 +63,21 @@ jobs:
           echo "Listing contents of node_modules/next/server to verify require-hook.js exists..."
           ls -R node_modules/next/server || true
 
-      - name: Package deployable (built artifacts)
+      - name: Package deployable (flattened ZIP)
         id: bundle
         run: |
           rm -f deploy-package.zip || true
+          # Create ZIP with all required files at root
           zip -r deploy-package.zip \
             .next package.json package-lock.json public next.config.js prisma node_modules README.md \
             -x "**/node_modules/.cache/*"
+
+          # Validate that package.json is at root of ZIP
+          if ! unzip -l deploy-package.zip | grep -q "package.json"; then
+            echo "ERROR: package.json not found at root of ZIP"
+            exit 1
+          fi
+
           echo "package-path=deploy-package.zip" >> $GITHUB_OUTPUT
 
       - name: Upload deploy package
