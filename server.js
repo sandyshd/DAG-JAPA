@@ -23,42 +23,62 @@ console.error('[server.js] ================================');
 const hasNodeModules = fs.existsSync(nodeModulesPath);
 console.error('[server.js] node_modules exists:', hasNodeModules);
 
+// List root directory to verify source files are present
+console.error('[server.js] *** Checking for required source folders ***');
+const requiredFolders = ['app', 'lib', 'types', '.next', 'prisma', 'public'];
+const missingFolders = [];
+
+requiredFolders.forEach(folder => {
+  const folderPath = path.join(__dirname, folder);
+  const exists = fs.existsSync(folderPath);
+  if (exists) {
+    console.error(`[server.js] ✓ ${folder}/ found`);
+  } else {
+    console.error(`[server.js] ✗ ${folder}/ MISSING`);
+    missingFolders.push(folder);
+  }
+});
+
+if (missingFolders.length > 0) {
+  console.error(`[server.js] ERROR: Missing critical folders: ${missingFolders.join(', ')}`);
+  console.error('[server.js] The deployment package may be incomplete!');
+}
+
 if (!hasNodeModules) {
   console.error('[server.js] *** npm install needed ***');
   console.error('[server.js] Installing npm dependencies...');
-  console.error('[server.js] This may take a few minutes on first deployment...');
+  console.error('[server.js] This may take 3-10 minutes on first deployment...');
   console.error('[server.js] Running: npm install --production --no-save');
   
   try {
     const result = spawnSync('npm', ['install', '--production', '--no-save'], {
       cwd: __dirname,
       stdio: 'inherit',
-      timeout: 10 * 60 * 1000, // 10 minute timeout
+      timeout: 15 * 60 * 1000, // 15 minute timeout (increased from 10)
       shell: true, // Use shell to ensure npm is found
     });
 
     console.error('[server.js] npm install exit code:', result.status);
-    console.error('[server.js] npm install error:', result.error);
-
+    
     if (result.error) {
       console.error('[server.js] ERROR: npm install failed with error:', result.error);
-      console.error('[server.js] Attempting to continue anyway...');
     }
 
     if (result.status !== 0 && result.status !== null) {
-      console.error('[server.js] ERROR: npm install failed with exit code:', result.status);
-      console.error('[server.js] Attempting to continue anyway...');
+      console.error('[server.js] ERROR: npm install exited with code:', result.status);
     }
 
     // Verify node_modules was created
     if (fs.existsSync(nodeModulesPath)) {
       console.error('[server.js] ✓ node_modules created successfully');
+      const count = fs.readdirSync(nodeModulesPath).length;
+      console.error(`[server.js] Installed ${count} dependencies`);
     } else {
       console.error('[server.js] ✗ WARNING: node_modules was not created');
+      console.error('[server.js] This will likely cause the app to fail!');
     }
   } catch (error) {
     console.error('[server.js] ERROR: Exception during npm install:', error);
-    console.error('[server.js] Attempting to continue anyway...');
   }
 } else {
   console.error('[server.js] node_modules already exists, skipping npm install');
@@ -68,7 +88,11 @@ if (!hasNodeModules) {
 console.error('[server.js] *** Current directory contents ***');
 try {
   const files = fs.readdirSync(__dirname);
-  files.forEach(f => console.error('[server.js]   -', f));
+  files.sort().forEach(f => {
+    const fullPath = path.join(__dirname, f);
+    const isDir = fs.statSync(fullPath).isDirectory();
+    console.error('[server.js]   ' + (isDir ? '[DIR]  ' : '[FILE] ') + f);
+  });
 } catch (e) {
   console.error('[server.js] Could not list directory:', e.message);
 }
@@ -76,6 +100,7 @@ try {
 // Now start the Next.js server
 console.error('[server.js] *** Starting Next.js server via npm start ***');
 console.error('[server.js] Running: npm start');
+console.error('[server.js] ================================');
 
 const nextProcess = spawn('npm', ['start'], {
   cwd: __dirname,

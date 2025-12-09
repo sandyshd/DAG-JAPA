@@ -68,31 +68,32 @@ jobs:
         run: |
           rm -f deploy-package.zip || true
           # Create ZIP with built app files; exclude node_modules (will be installed by server.js on first run)
-          # Include: built .next, package files, public assets, prisma schema/migrations, web.config, server.js wrapper
+          # Include: app, lib, types (source code), built .next, package files, public assets, prisma, web.config, server.js
           zip -r deploy-package.zip \
-            .next package.json package-lock.json public next.config.js prisma README.md web.config server.js \
+            app lib types .next package.json package-lock.json public next.config.js prisma README.md web.config server.js \
             -x "**/node_modules/*" "**/node_modules/.cache/*" ".git/*" ".github/*" ".deployment" "deploy.cmd" "deploy.sh" "deploy-package.zip"
 
           # Validate that key files are in the ZIP
           echo "ZIP package created. Validating contents..."
-          if ! unzip -l deploy-package.zip | grep -q "package.json"; then
-            echo "ERROR: package.json not found in ZIP"
-            exit 1
-          fi
-          if ! unzip -l deploy-package.zip | grep -q ".next/"; then
-            echo "ERROR: .next/ not found in ZIP"
-            exit 1
-          fi
-          if ! unzip -l deploy-package.zip | grep -q "web.config"; then
-            echo "ERROR: web.config not found in ZIP"
-            exit 1
-          fi
-          if ! unzip -l deploy-package.zip | grep -q "server.js"; then
-            echo "ERROR: server.js not found in ZIP"
+          validation_failed=false
+          
+          for check in "package.json" ".next/" "web.config" "server.js" "app/" "lib/" "types/"; do
+            if ! unzip -l deploy-package.zip | grep -q "$check"; then
+              echo "ERROR: $check not found in ZIP"
+              validation_failed=true
+            else
+              echo "✓ $check found in ZIP"
+            fi
+          done
+          
+          if [ "$validation_failed" = "true" ]; then
+            echo "ZIP validation FAILED - missing critical files"
+            echo "ZIP contents:"
+            unzip -l deploy-package.zip | head -30
             exit 1
           fi
 
-          echo "ZIP validation passed."
+          echo "ZIP validation passed. All critical files present."
           echo "package-path=deploy-package.zip" >> $GITHUB_OUTPUT
 
       - name: Upload deploy package
