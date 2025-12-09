@@ -135,17 +135,19 @@ jobs:
 
       - name: Ensure startup command (Windows, conditional)
         run: |
-          if [ "${{ github.event.inputs.environment }}" = "production" ]; then
-            az webapp config appsettings set \
-              --resource-group "${{ github.event.inputs.resource_group }}" \
-              --name "${{ github.event.inputs.app_name }}" \
-              --settings COMMAND="npm start"
-          else
-            az webapp config appsettings set \
-              --resource-group "${{ github.event.inputs.resource_group }}" \
-              --name "${{ github.event.inputs.app_name }}" \
-              --settings COMMAND="npm run dev"
-          fi
+          RG="${{ github.event.inputs.resource_group }}"
+          APP="${{ github.event.inputs.app_name }}"
+          
+          echo "Configuring startup command..."
+          
+          # For Windows App Service, use -Handler and -Script parameters
+          az webapp config set \
+            --resource-group "$RG" \
+            --name "$APP" \
+            --startup-file "npm start"
+          
+          echo "Startup command configured. Current app settings:"
+          az webapp config appsettings list --resource-group "$RG" --name "$APP" | grep -E '(COMMAND|startup|NODE_ENV)' || true
 
       - name: Download deploy package
         uses: actions/download-artifact@v4
@@ -153,13 +155,62 @@ jobs:
           name: deploy-package
           path: .
 
+      - name: Validate deploy package
+        run: |
+          echo "Validating deploy package..."
+          if [ ! -f deploy-package.zip ]; then
+            echo "ERROR: deploy-package.zip not found!"
+            exit 1
+          fi
+          
+          zip_size=$(stat -f%z deploy-package.zip 2>/dev/null || stat -c%s deploy-package.zip)
+          echo "ZIP package size: $zip_size bytes"
+          
+          if [ $zip_size -lt 1000 ]; then
+            echo "ERROR: ZIP package is suspiciously small ($zip_size bytes)"
+            exit 1
+          fi
+          
+          echo "ZIP package validation passed."
+          echo "Contents summary:"
+          unzip -l deploy-package.zip | head -20
+
       - name: Deploy ZIP to Web App (Windows)
         run: |
-          az webapp deploy \
-            --resource-group "${{ github.event.inputs.resource_group }}" \
-            --name "${{ github.event.inputs.app_name }}" \
-            --src-path deploy-package.zip \
-            --type zip
+          set -e
+          RG="${{ github.event.inputs.resource_group }}"
+          APP="${{ github.event.inputs.app_name }}"
+          
+          echo "Starting deployment of deploy-package.zip to $APP"
+          echo "ZIP file size: $(ls -lh deploy-package.zip | awk '{print $5}')"
+          
+          # Attempt deployment with retry logic
+          deployment_succeeded=false
+          for attempt in 1 2 3; do
+            echo "Deployment attempt $attempt/3..."
+            if az webapp deploy \
+              --resource-group "$RG" \
+              --name "$APP" \
+              --src-path deploy-package.zip \
+              --type zip 2>&1; then
+              echo "Deployment succeeded on attempt $attempt"
+              deployment_succeeded=true
+              break
+            else
+              exit_code=$?
+              echo "Deployment attempt $attempt failed with exit code $exit_code"
+              if [ $attempt -lt 3 ]; then
+                echo "Waiting 10 seconds before retry..."
+                sleep 10
+              fi
+            fi
+          done
+          
+          if [ "$deployment_succeeded" = "false" ]; then
+            echo "All deployment attempts failed. Fetching Kudu logs..."
+            az webapp log tail --resource-group "$RG" --name "$APP" --lines 50 || true
+            exit 1
+          fi
 
       - name: Restart Web App
         run: |
