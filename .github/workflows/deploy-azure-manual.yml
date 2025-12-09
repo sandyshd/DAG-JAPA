@@ -68,9 +68,9 @@ jobs:
         run: |
           rm -f deploy-package.zip || true
           # Create ZIP with minimal files; exclude node_modules (will be restored on App Service via post-deploy script)
-          # Include: built .next, package files, public assets, prisma schema/migrations, web.config, deploy script
+          # Include: built .next, package files, public assets, prisma schema/migrations, web.config, deploy scripts
           zip -r deploy-package.zip \
-            .next package.json package-lock.json public next.config.js prisma README.md web.config .deployment deploy.sh \
+            .next package.json package-lock.json public next.config.js prisma README.md web.config .deployment deploy.cmd \
             -x "**/node_modules/*" "**/node_modules/.cache/*" ".git/*" ".github/*" "deploy-package.zip"
 
           # Validate that key files are in the ZIP
@@ -85,6 +85,10 @@ jobs:
           fi
           if ! unzip -l deploy-package.zip | grep -q "web.config"; then
             echo "ERROR: web.config not found in ZIP"
+            exit 1
+          fi
+          if ! unzip -l deploy-package.zip | grep -q "deploy.cmd"; then
+            echo "ERROR: deploy.cmd not found in ZIP"
             exit 1
           fi
 
@@ -242,8 +246,8 @@ jobs:
           done
           echo "Health check failed after 100 attempts (~10 minutes)."
           echo ""
-          echo "=== Streaming App Service Logs for diagnostics ==="
-          az webapp log tail --resource-group "$RG" --name "$APP" 2>/dev/null || echo "Could not fetch logs"
+          echo "=== App Service Deployment Logs for diagnostics ==="
+          az webapp log deployment show --resource-group "$RG" --name "$APP" 2>/dev/null || echo "Could not fetch deployment logs"
           exit 1
 
   notify:
