@@ -67,11 +67,11 @@ jobs:
         id: bundle
         run: |
           rm -f deploy-package.zip || true
-          # Create ZIP with minimal files; exclude node_modules (will be restored on App Service via post-deploy script)
-          # Include: built .next, package files, public assets, prisma schema/migrations, web.config, deploy scripts
+          # Create ZIP with built app files; exclude node_modules (will be installed by server.js on first run)
+          # Include: built .next, package files, public assets, prisma schema/migrations, web.config, server.js wrapper
           zip -r deploy-package.zip \
-            .next package.json package-lock.json public next.config.js prisma README.md web.config .deployment deploy.cmd \
-            -x "**/node_modules/*" "**/node_modules/.cache/*" ".git/*" ".github/*" "deploy-package.zip"
+            .next package.json package-lock.json public next.config.js prisma README.md web.config server.js \
+            -x "**/node_modules/*" "**/node_modules/.cache/*" ".git/*" ".github/*" ".deployment" "deploy.cmd" "deploy.sh" "deploy-package.zip"
 
           # Validate that key files are in the ZIP
           echo "ZIP package created. Validating contents..."
@@ -87,8 +87,8 @@ jobs:
             echo "ERROR: web.config not found in ZIP"
             exit 1
           fi
-          if ! unzip -l deploy-package.zip | grep -q "deploy.cmd"; then
-            echo "ERROR: deploy.cmd not found in ZIP"
+          if ! unzip -l deploy-package.zip | grep -q "server.js"; then
+            echo "ERROR: server.js not found in ZIP"
             exit 1
           fi
 
@@ -154,13 +154,13 @@ jobs:
           
           echo "Configuring startup command..."
           
-          # For Windows App Service, add startup command as app setting
+          # For Windows App Service, use server.js wrapper which installs dependencies and starts Next.js
           az webapp config appsettings set \
             --resource-group "$RG" \
             --name "$APP" \
-            --settings STARTUP="npm start"
+            --settings STARTUP="node server.js"
           
-          echo "Startup command configured."
+          echo "Startup command configured to: node server.js"
           
           # Verify the setting was applied
           echo "Verifying STARTUP setting..."
