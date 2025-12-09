@@ -133,12 +133,26 @@ jobs:
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-      - name: Configure Node 20 runtime (Windows)
+      - name: Configure App Service settings for reliability
         run: |
+          RG="${{ github.event.inputs.resource_group }}"
+          APP="${{ github.event.inputs.app_name }}"
+          
+          echo "Configuring App Service for optimal deployment..."
+          
+          # Enable Always On so npm install can run and app doesn't sleep
           az webapp config set \
-            --resource-group "${{ github.event.inputs.resource_group }}" \
-            --name "${{ github.event.inputs.app_name }}" \
-            --windows-fx-version "NODE|20-lts"
+            --resource-group "$RG" \
+            --name "$APP" \
+            --always-on true
+          
+          # Set 32-bit platform (more stable on Windows for Node.js)
+          az webapp config set \
+            --resource-group "$RG" \
+            --name "$APP" \
+            --use-32bit-worker-process false
+          
+          echo "App Service configured"
 
       - name: Ensure app settings (base)
         run: |
@@ -231,34 +245,14 @@ jobs:
 
       - name: Restart Web App
         run: |
-          az webapp restart --resource-group "${{ github.event.inputs.resource_group }}" --name "${{ github.event.inputs.app_name }}"
-
-      - name: Trigger npm install via Kudu (post-deployment)
-        run: |
           RG="${{ github.event.inputs.resource_group }}"
           APP="${{ github.event.inputs.app_name }}"
-          KUDU_URL="https://${APP}.scm.azurewebsites.net"
           
-          echo "Attempting to trigger npm install via Kudu command API..."
-          echo "Kudu URL: $KUDU_URL"
+          echo "Restarting Web App..."
+          az webapp restart --resource-group "$RG" --name "$APP"
           
-          # Get Kudu deployment user credentials from Azure
-          KUDU_USER=$(az webapp deployment list-publishing-credentials --resource-group "$RG" --name "$APP" --query "[0].publishingUserName" -o tsv)
-          KUDU_PASS=$(az webapp deployment list-publishing-credentials --resource-group "$RG" --name "$APP" --query "[0].publishingPassword" -o tsv)
-          
-          echo "Kudu user obtained"
-          
-          # Send command to Kudu to run npm install
-          # Note: This runs in the wwwroot directory
-          curl -X POST \
-            -u "$KUDU_USER:$KUDU_PASS" \
-            -H "Content-Type: application/json" \
-            -d '{"command":"cd D:\\home\\site\\wwwroot && npm install --production --no-save"}' \
-            "$KUDU_URL/api/command" \
-            -v || echo "Kudu command may have failed or timed out; npm install might still be running"
-          
-          sleep 5
-          echo "Continuing with health checks..."
+          echo "Waiting for app to start (20 seconds)..."
+          sleep 20
 
       - name: Health check URL
         run: |
@@ -266,34 +260,61 @@ jobs:
           RG="${{ github.event.inputs.resource_group }}"
           APP="${{ github.event.inputs.app_name }}"
           
-          echo "Pre-health check diagnostics..."
+          echo "=========================================="
+          echo "Performing health checks"
+          echo "=========================================="
           echo "App URL: $APP_URL"
-          echo "Checking app settings for STARTUP..."
-          az webapp config appsettings list --resource-group "$RG" --name "$APP" | grep -i "STARTUP" || echo "WARNING: STARTUP not found"
-          
           echo ""
-          echo "Checking ${APP_URL}/api/health"
-          echo "Note: npm install may be running in background; this can take 5-15 minutes on first deployment..."
           
-          # Increase attempts to 150 (covers ~15 minutes at 6-second intervals)
+          echo "Waiting for app to be ready..."
+          echo "Note: On first deployment, npm install will run on app startup (3-10 minutes)"
+          echo ""
+          
+          # Try 150 times (15 minutes at 6-second intervals)
+          success=false
           for i in {1..150}; do
-            http_code=$(curl -s -o /dev/null -w "%{http_code}" ${APP_URL}/api/health 2>/dev/null || echo "000")
+            http_code=$(curl -s -o /dev/null -w "%{http_code}" "${APP_URL}/api/health" 2>/dev/null || echo "000")
+            
             if [ "$http_code" = "200" ]; then
-              echo "✓ Health check passed (HTTP 200)"; exit 0
+              echo "✓ SUCCESS: Health check passed (HTTP 200)"
+              success=true
+              break
             fi
-            if [ $((i % 15)) -eq 0 ]; then
-              echo "Still waiting... Attempt $i/150 - HTTP $http_code - $(($((150 - i)) * 6)) seconds remaining"
+            
+            # Print progress every 30 seconds
+            if [ $((i % 5)) -eq 0 ]; then
+              elapsed=$((i * 6))
+              remaining=$(((150 - i) * 6))
+              echo "  Attempt $i/150 - HTTP $http_code - Elapsed: ${elapsed}s, Remaining: ~${remaining}s"
             fi
+            
             sleep 6
           done
-          echo "✗ Health check failed after 150 attempts (~15 minutes)."
+          
+          if [ "$success" = false ]; then
+            echo ""
+            echo "✗ FAILED: Health check did not pass after 15 minutes"
+            echo ""
+            echo "Diagnostic information:"
+            echo "========================"
+            echo ""
+            echo "App settings:"
+            az webapp config appsettings list --resource-group "$RG" --name "$APP" | grep -E "STARTUP|NODE_ENV|WEBSITE_RUN_FROM_PACKAGE" || true
+            echo ""
+            echo "Deployment logs:"
+            az webapp log deployment show --resource-group "$RG" --name "$APP" || echo "Could not fetch logs"
+            echo ""
+            echo "Next steps:"
+            echo "1. Check Azure Portal: Configuration → Always On should be ON"
+            echo "2. Check wwwroot folder contents in Kudu: https://${APP}.scm.azurewebsites.net/DebugConsole"
+            echo "3. Run: npm install --production manually in the Kudu console"
+            exit 1
+          fi
+          
           echo ""
-          echo "=== App Service Deployment Logs for diagnostics ==="
-          az webapp log deployment show --resource-group "$RG" --name "$APP" 2>/dev/null || echo "Could not fetch deployment logs"
-          echo ""
-          echo "=== Checking app settings ==="
-          az webapp config appsettings list --resource-group "$RG" --name "$APP" || true
-          exit 1
+          echo "=========================================="
+          echo "Deployment successful!"
+          echo "=========================================="
 
   notify:
     name: Notification
