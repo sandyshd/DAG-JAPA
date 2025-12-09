@@ -6,7 +6,7 @@ on:
       environment:
         description: 'Deployment environment (development or production)'
         required: true
-        default: 'development'
+        default: 'production'
         type: choice
         options:
           - development
@@ -146,10 +146,11 @@ jobs:
 
       - name: Deploy ZIP to Web App (Windows)
         run: |
-          az webapp deployment source config-zip \
+          az webapp deploy \
             --resource-group "${{ github.event.inputs.resource_group }}" \
             --name "${{ github.event.inputs.app_name }}" \
-            --src deploy-package.zip
+            --src-path deploy-package.zip \
+            --type zip
 
       - name: Restart Web App
         run: |
