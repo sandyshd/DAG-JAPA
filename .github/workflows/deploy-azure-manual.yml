@@ -145,7 +145,7 @@ jobs:
           az webapp config appsettings set \
             --resource-group "${{ github.event.inputs.resource_group }}" \
             --name "${{ github.event.inputs.app_name }}" \
-            --settings SCM_DO_BUILD_DURING_DEPLOYMENT=false WEBSITE_RUN_FROM_PACKAGE=1 NODE_ENV=production WEBSITE_NODE_DEFAULT_VERSION=20-lts
+            --settings SCM_DO_BUILD_DURING_DEPLOYMENT=false NODE_ENV=production WEBSITE_NODE_DEFAULT_VERSION=20-lts
 
       - name: Ensure startup command (Windows, conditional)
         run: |
@@ -154,14 +154,13 @@ jobs:
           
           echo "Configuring startup command..."
           
-          # For Windows App Service, use -Handler and -Script parameters
-          az webapp config set \
+          # For Windows App Service, add startup command as app setting
+          az webapp config appsettings set \
             --resource-group "$RG" \
             --name "$APP" \
-            --startup-file "npm start"
+            --settings STARTUP="npm start"
           
-          echo "Startup command configured. Current app settings:"
-          az webapp config appsettings list --resource-group "$RG" --name "$APP" | grep -E '(COMMAND|startup|NODE_ENV)' || true
+          echo "Startup command configured."
 
       - name: Download deploy package
         uses: actions/download-artifact@v4
