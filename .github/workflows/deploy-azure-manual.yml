@@ -233,6 +233,33 @@ jobs:
         run: |
           az webapp restart --resource-group "${{ github.event.inputs.resource_group }}" --name "${{ github.event.inputs.app_name }}"
 
+      - name: Trigger npm install via Kudu (post-deployment)
+        run: |
+          RG="${{ github.event.inputs.resource_group }}"
+          APP="${{ github.event.inputs.app_name }}"
+          KUDU_URL="https://${APP}.scm.azurewebsites.net"
+          
+          echo "Attempting to trigger npm install via Kudu command API..."
+          echo "Kudu URL: $KUDU_URL"
+          
+          # Get Kudu deployment user credentials from Azure
+          KUDU_USER=$(az webapp deployment list-publishing-credentials --resource-group "$RG" --name "$APP" --query "[0].publishingUserName" -o tsv)
+          KUDU_PASS=$(az webapp deployment list-publishing-credentials --resource-group "$RG" --name "$APP" --query "[0].publishingPassword" -o tsv)
+          
+          echo "Kudu user obtained"
+          
+          # Send command to Kudu to run npm install
+          # Note: This runs in the wwwroot directory
+          curl -X POST \
+            -u "$KUDU_USER:$KUDU_PASS" \
+            -H "Content-Type: application/json" \
+            -d '{"command":"cd D:\\home\\site\\wwwroot && npm install --production --no-save"}' \
+            "$KUDU_URL/api/command" \
+            -v || echo "Kudu command may have failed or timed out; npm install might still be running"
+          
+          sleep 5
+          echo "Continuing with health checks..."
+
       - name: Health check URL
         run: |
           APP_URL="https://${{ github.event.inputs.app_name }}.azurewebsites.net"
@@ -246,26 +273,26 @@ jobs:
           
           echo ""
           echo "Checking ${APP_URL}/api/health"
-          echo "Note: First startup includes npm install, may take up to 10 minutes..."
-          for i in {1..100}; do
+          echo "Note: npm install may be running in background; this can take 5-15 minutes on first deployment..."
+          
+          # Increase attempts to 150 (covers ~15 minutes at 6-second intervals)
+          for i in {1..150}; do
             http_code=$(curl -s -o /dev/null -w "%{http_code}" ${APP_URL}/api/health 2>/dev/null || echo "000")
             if [ "$http_code" = "200" ]; then
-              echo "Health check passed (HTTP 200)"; exit 0
+              echo "✓ Health check passed (HTTP 200)"; exit 0
             fi
-            if [ $((i % 10)) -eq 0 ]; then
-              echo "Still waiting... Attempt $i/100 - HTTP $http_code"
-            else
-              echo "Attempt $i/100 - HTTP $http_code"
+            if [ $((i % 15)) -eq 0 ]; then
+              echo "Still waiting... Attempt $i/150 - HTTP $http_code - $(($((150 - i)) * 6)) seconds remaining"
             fi
             sleep 6
           done
-          echo "Health check failed after 100 attempts (~10 minutes)."
+          echo "✗ Health check failed after 150 attempts (~15 minutes)."
           echo ""
           echo "=== App Service Deployment Logs for diagnostics ==="
           az webapp log deployment show --resource-group "$RG" --name "$APP" 2>/dev/null || echo "Could not fetch deployment logs"
           echo ""
           echo "=== Checking app settings ==="
-          az webapp config appsettings list --resource-group "$RG" --name "$APP" | head -20 || true
+          az webapp config appsettings list --resource-group "$RG" --name "$APP" || true
           exit 1
 
   notify:
