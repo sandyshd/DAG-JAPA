@@ -170,4 +170,14 @@ jobs:
           app-name: 'dag-japa-dev-webapp'
           slot-name: 'Production'
           package: .
+
+      - name: Restart Azure App Service
+        run: |
+          echo "=== Restarting App Service to clear cache and load fresh files ==="
+          az webapp restart --name dag-japa-dev-webapp --resource-group $(az webapp show --name dag-japa-dev-webapp --query resourceGroup -o tsv)
+          echo "✓ App Service restarted"
+          echo ""
+          echo "Waiting 10 seconds for app to start..."
+          sleep 10
+          echo "✓ Ready"
           
