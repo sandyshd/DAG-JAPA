@@ -61,61 +61,48 @@ jobs:
             fi
           done
 
-      - name: Upload artifact for deployment job
+      - name: Package deployment files
         run: |
-          # Create a clean deployment package with all required files
-          echo "=== Packaging deployment artifact ==="
+          echo "=== Packaging deployment files ==="
+          echo "Creating deployment directory..."
+          mkdir -p deployment
           
-          # List what we're packaging
-          echo "Files to include:"
-          echo "✓ .next (build output)"
-          echo "✓ node_modules (dependencies)"
-          echo "✓ package.json, package-lock.json"
-          echo "✓ app/, lib/, prisma/, public/, types/"
-          echo "✓ Configuration files"
+          echo "Copying files..."
+          cp -r .next deployment/
+          cp -r node_modules deployment/
+          cp -r app deployment/
+          cp -r lib deployment/
+          cp -r prisma deployment/
+          cp -r public deployment/
+          cp -r types deployment/
+          cp package.json deployment/
+          cp package-lock.json deployment/
+          cp next.config.js deployment/
+          cp tsconfig.json deployment/
+          cp postcss.config.js deployment/
+          cp tailwind.config.ts deployment/
           
-          # Create tar archive with explicit paths
-          tar --exclude=.git \
-              --exclude=.github \
-              --exclude=.gitignore \
-              --exclude=.env \
-              --exclude=.env.local \
-              --exclude=.env.*.local \
-              --exclude=coverage \
-              --exclude=.next/cache \
-              -czf artifact.tar.gz \
-              .next \
-              node_modules \
-              package.json \
-              package-lock.json \
-              next.config.js \
-              tsconfig.json \
-              postcss.config.js \
-              tailwind.config.ts \
-              public \
-              prisma \
-              app \
-              lib \
-              types
+          echo ""
+          echo "=== Deployment Directory Contents ==="
+          ls -la deployment/
           
-          if [ ! -f artifact.tar.gz ]; then
-            echo "ERROR: Failed to create artifact.tar.gz" >&2
+          if [ ! -d "deployment/.next" ]; then
+            echo "ERROR: .next not copied to deployment" >&2
             exit 1
           fi
+          echo "✓ .next copied successfully"
           
-          artifact_size=$(du -sh artifact.tar.gz | cut -f1)
-          echo "✓ Artifact created: artifact.tar.gz ($artifact_size)"
-          
-          # Verify contents
-          echo ""
-          echo "=== Artifact Contents ==="
-          tar -tzf artifact.tar.gz | head -30
+          if [ ! -d "deployment/node_modules" ]; then
+            echo "ERROR: node_modules not copied to deployment" >&2
+            exit 1
+          fi
+          echo "✓ node_modules copied successfully"
           
       - name: Upload packaged artifact
         uses: actions/upload-artifact@v4
         with:
           name: node-app
-          path: artifact.tar.gz
+          path: deployment
           retention-days: 1
           if-no-files-found: error
 
@@ -132,29 +119,25 @@ jobs:
         with:
           name: node-app
       
-      - name: Extract deployment package
+      - name: Verify deployment files
         run: |
-          echo "=== Extracting deployment artifact ==="
-          tar -xzf artifact.tar.gz
-          
-          echo ""
-          echo "=== Extracted Files ==="
+          echo "=== Verifying deployment files ==="
           ls -la
           
           if [ ! -d ".next" ]; then
-            echo "ERROR: .next not found after extraction" >&2
+            echo "ERROR: .next directory not found" >&2
             exit 1
           fi
-          echo "✓ .next found"
+          echo "✓ .next directory found"
           
           if [ ! -d "node_modules" ]; then
-            echo "ERROR: node_modules not found after extraction" >&2
+            echo "ERROR: node_modules directory not found" >&2
             exit 1
           fi
-          echo "✓ node_modules found"
+          echo "✓ node_modules directory found"
           
-          # Cleanup tar file
-          rm -f artifact.tar.gz
+          echo ""
+          echo "Ready for deployment to Azure"
       
       - name: Login to Azure
         uses: azure/login@v2
@@ -171,13 +154,13 @@ jobs:
           slot-name: 'Production'
           package: .
 
-      - name: Restart Azure App Service
+      - name: Wait and verify deployment
         run: |
-          echo "=== Restarting App Service to clear cache and load fresh files ==="
-          az webapp restart --name dag-japa-dev-webapp --resource-group $(az webapp show --name dag-japa-dev-webapp --query resourceGroup -o tsv)
-          echo "✓ App Service restarted"
-          echo ""
-          echo "Waiting 10 seconds for app to start..."
-          sleep 10
+          echo "=== Deployment complete ==="
+          echo "Waiting 20 seconds for app to initialize..."
+          sleep 20
           echo "✓ Ready"
+          echo ""
+          echo "App should now be accessible at:"
+          echo "https://dag-japa-dev-webapp.azurewebsites.net"
           
