@@ -30,36 +30,40 @@ jobs:
 
       - name: npm install, build, and test
         run: |
+          set -e  # Exit on any error
+          echo "=== Installing dependencies ==="
           npm ci
+          
+          echo ""
+          echo "=== Running build ==="
           npm run build --if-present
-          npm prune --production
-
-      - name: Verify .next exists and has content
-        run: |
-          echo "=== Build Output Verification ==="
-          if [ ! -d ".next" ]; then
-            echo "FATAL: .next directory not found!" >&2
-            echo "Directory contents:" >&2
-            ls -la
+          
+          if [ $? -ne 0 ]; then
+            echo "ERROR: Build failed!" >&2
             exit 1
           fi
-          echo "✓ .next directory found"
-          find .next -type f | wc -l > /tmp/next_files.txt
-          file_count=$(cat /tmp/next_files.txt)
-          echo "✓ .next contains $file_count files"
-          du -sh .next
           
-          ls -la .next/ || true
           echo ""
-          echo "=== Files to be uploaded ==="
-          for dir in .next node_modules package.json package-lock.json next.config.js tsconfig.json public prisma app lib; do
-            if [ -e "$dir" ]; then
-              size=$(du -sh "$dir" 2>/dev/null | cut -f1)
-              echo "✓ $dir ($size)"
-            else
-              echo "✗ $dir (missing)"
-            fi
-          done
+          echo "=== Pruning production dependencies ==="
+          npm prune --production
+
+      - name: Verify build succeeded (.next created)
+        run: |
+          echo "=== Build Verification ==="
+          if [ ! -d ".next" ]; then
+            echo "FATAL: .next directory not created!" >&2
+            echo ""
+            echo "Current directory contents:"
+            ls -la
+            echo ""
+            echo "This indicates the build failed. Check npm run build output above."
+            exit 1
+          fi
+          echo "✓ .next directory created successfully"
+          echo ""
+          echo ".next directory structure:"
+          du -sh .next
+          ls -la .next/
 
       - name: Package deployment files
         run: |
