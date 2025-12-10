@@ -62,21 +62,60 @@ jobs:
           done
 
       - name: Upload artifact for deployment job
+        run: |
+          # Create a clean deployment package with all required files
+          echo "=== Packaging deployment artifact ==="
+          
+          # List what we're packaging
+          echo "Files to include:"
+          echo "✓ .next (build output)"
+          echo "✓ node_modules (dependencies)"
+          echo "✓ package.json, package-lock.json"
+          echo "✓ app/, lib/, prisma/, public/, types/"
+          echo "✓ Configuration files"
+          
+          # Create tar archive with explicit paths
+          tar --exclude=.git \
+              --exclude=.github \
+              --exclude=.gitignore \
+              --exclude=.env \
+              --exclude=.env.local \
+              --exclude=.env.*.local \
+              --exclude=coverage \
+              --exclude=.next/cache \
+              -czf artifact.tar.gz \
+              .next \
+              node_modules \
+              package.json \
+              package-lock.json \
+              next.config.js \
+              tsconfig.json \
+              postcss.config.js \
+              tailwind.config.ts \
+              public \
+              prisma \
+              app \
+              lib \
+              types
+          
+          if [ ! -f artifact.tar.gz ]; then
+            echo "ERROR: Failed to create artifact.tar.gz" >&2
+            exit 1
+          fi
+          
+          artifact_size=$(du -sh artifact.tar.gz | cut -f1)
+          echo "✓ Artifact created: artifact.tar.gz ($artifact_size)"
+          
+          # Verify contents
+          echo ""
+          echo "=== Artifact Contents ==="
+          tar -tzf artifact.tar.gz | head -30
+          
+      - name: Upload packaged artifact
         uses: actions/upload-artifact@v4
         with:
           name: node-app
-          path: |
-            .next
-            node_modules
-            package.json
-            package-lock.json
-            next.config.js
-            tsconfig.json
-            public
-            prisma
-            app
-            lib
-            types
+          path: artifact.tar.gz
           retention-days: 1
           if-no-files-found: error
 
@@ -92,6 +131,30 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: node-app
+      
+      - name: Extract deployment package
+        run: |
+          echo "=== Extracting deployment artifact ==="
+          tar -xzf artifact.tar.gz
+          
+          echo ""
+          echo "=== Extracted Files ==="
+          ls -la
+          
+          if [ ! -d ".next" ]; then
+            echo "ERROR: .next not found after extraction" >&2
+            exit 1
+          fi
+          echo "✓ .next found"
+          
+          if [ ! -d "node_modules" ]; then
+            echo "ERROR: node_modules not found after extraction" >&2
+            exit 1
+          fi
+          echo "✓ node_modules found"
+          
+          # Cleanup tar file
+          rm -f artifact.tar.gz
       
       - name: Login to Azure
         uses: azure/login@v2
