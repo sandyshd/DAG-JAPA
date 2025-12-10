@@ -169,7 +169,9 @@ jobs:
           
           echo "Configuring startup command..."
           
-          # For Windows App Service, use server.js wrapper which installs dependencies and starts Next.js
+          # For Windows App Service, use node server.js which:
+          # 1. Installs npm dependencies if needed
+          # 2. Runs npm start to start Next.js
           az webapp config appsettings set \
             --resource-group "$RG" \
             --name "$APP" \
