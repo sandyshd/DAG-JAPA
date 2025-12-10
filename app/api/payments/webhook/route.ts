@@ -3,9 +3,7 @@ import Stripe from 'stripe';
 import prisma from '@/lib/prisma';
 
 function getStripe() {
-  return new Stripe(process.env.STRIPE_SECRET_KEY!, {
-    apiVersion: '2025-11-17.clover',
-  });
+  return new Stripe(process.env.STRIPE_SECRET_KEY!);
 }
 
 const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET!;
