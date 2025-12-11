@@ -112,8 +112,8 @@ jobs:
         with:
           app-name: 'dag-japa-dev-webapp'
           slot-name: 'Production'
+          clean: true   # ensures wwwroot is fully cleared before deployment
           package: .
-          removeAdditionalFilesFlag: true   # ensures wwwroot is fully cleared before deployment
 
       - name: Start App Service and verify deployment
         run: |
