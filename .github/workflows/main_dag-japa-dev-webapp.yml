@@ -214,31 +214,14 @@ jobs:
           tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_04843C08210343A59FD4C73E79F4E003 }}
           subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_FC9C86FE2DFC4F07B9C177FB9AE3D484 }}
 
-      - name: Clean Azure App Service wwwroot folder
-        run: |
-          echo "=== Cleaning wwwroot folder on Azure App Service ==="
-          echo ""
-          echo "Stopping App Service: dag-japa-dev-webapp"
-          
-          # Try to stop the app service
-          # The resource group should be available from the Azure login context
-          az webapp stop --name dag-japa-dev-webapp || {
-            echo "WARNING: Could not stop app service, continuing anyway..."
-          }
-          
-          echo "✓ App Service stop command executed"
-          echo ""
-          echo "Waiting 5 seconds for graceful shutdown..."
-          sleep 5
-          
-          echo "✓ App Service ready for fresh deployment"
-
       - name: 'Deploy to Azure Web App'
         id: deploy-to-webapp
         uses: azure/webapps-deploy@v3
         with:
           app-name: 'dag-japa-dev-webapp'
           slot-name: 'Production'
+           # Set this flag to true to delete extra files in wwwroot
+          removeAdditionalFilesFlag: true
           package: .
 
       - name: Start App Service and verify deployment
