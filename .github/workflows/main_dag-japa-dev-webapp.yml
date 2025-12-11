@@ -67,40 +67,69 @@ jobs:
 
       - name: Package deployment files
         run: |
-          echo "=== Packaging deployment files ==="
-          echo "Creating deployment directory..."
-          mkdir -p deployment
-          
-          echo "Copying files..."
-          cp -r .next deployment/
-          cp -r node_modules deployment/
-          cp -r app deployment/
-          cp -r lib deployment/
-          cp -r prisma deployment/
-          cp -r public deployment/
-          cp -r types deployment/
-          cp package.json deployment/
-          cp package-lock.json deployment/
-          cp next.config.js deployment/
-          cp tsconfig.json deployment/
-          cp postcss.config.js deployment/
-          cp tailwind.config.ts deployment/
+          echo "=== Cleaning old deployment directory ==="
+          rm -rf deployment
+          echo "✓ Old deployment directory removed"
           
           echo ""
-          echo "=== Deployment Directory Contents ==="
-          ls -la deployment/
+          echo "=== Creating fresh deployment directory ==="
+          mkdir -p deployment
+          echo "✓ Fresh deployment directory created"
           
-          if [ ! -d "deployment/.next" ]; then
-            echo "ERROR: .next not copied to deployment" >&2
+          echo ""
+          echo "=== Copying build output and dependencies ==="
+          
+          echo "Copying .next..."
+          if [ ! -d ".next" ]; then
+            echo "ERROR: .next not found in current directory!" >&2
+            ls -la
             exit 1
           fi
-          echo "✓ .next copied successfully"
+          cp -rv .next deployment/ || exit 1
+          echo "✓ .next copied"
           
-          if [ ! -d "deployment/node_modules" ]; then
-            echo "ERROR: node_modules not copied to deployment" >&2
+          echo ""
+          echo "Copying node_modules..."
+          if [ ! -d "node_modules" ]; then
+            echo "ERROR: node_modules not found in current directory!" >&2
             exit 1
           fi
-          echo "✓ node_modules copied successfully"
+          cp -rv node_modules deployment/ || exit 1
+          echo "✓ node_modules copied"
+          
+          echo ""
+          echo "Copying source code and config files..."
+          cp -rv app deployment/ || exit 1
+          cp -rv lib deployment/ || exit 1
+          cp -rv prisma deployment/ || exit 1
+          cp -rv public deployment/ || exit 1
+          cp -rv types deployment/ || exit 1
+          cp -v package.json deployment/ || exit 1
+          cp -v package-lock.json deployment/ || exit 1
+          cp -v next.config.js deployment/ || exit 1
+          cp -v tsconfig.json deployment/ || exit 1
+          cp -v postcss.config.js deployment/ || exit 1
+          cp -v tailwind.config.ts deployment/ || exit 1
+          echo "✓ All files copied"
+          
+          echo ""
+          echo "=== Verifying deployment folder contents ==="
+          ls -lah deployment/
+          
+          echo ""
+          echo "=== Checking for critical files ==="
+          for file in .next node_modules package.json; do
+            if [ -e "deployment/$file" ]; then
+              size=$(du -sh "deployment/$file" 2>/dev/null | cut -f1)
+              echo "✓ deployment/$file ($size)"
+            else
+              echo "ERROR: deployment/$file NOT FOUND" >&2
+              exit 1
+            fi
+          done
+          
+          echo ""
+          echo "✓ Deployment package ready"
           
       - name: Upload packaged artifact
         uses: actions/upload-artifact@v4
