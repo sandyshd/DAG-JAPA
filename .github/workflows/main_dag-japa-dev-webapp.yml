@@ -131,13 +131,47 @@ jobs:
           echo ""
           echo "✓ Deployment package ready"
           
+      - name: Verify deployment folder before upload
+        run: |
+          echo "=== Pre-upload verification ==="
+          echo ""
+          echo "Deployment folder contents:"
+          ls -lah deployment/
+          
+          echo ""
+          echo "Checking .next inside deployment:"
+          if [ -d "deployment/.next" ]; then
+            echo "✓ deployment/.next EXISTS"
+            du -sh deployment/.next
+            ls -la deployment/.next/ | head -20
+          else
+            echo "ERROR: deployment/.next DOES NOT EXIST" >&2
+            exit 1
+          fi
+          
+          echo ""
+          echo "Checking node_modules inside deployment:"
+          if [ -d "deployment/node_modules" ]; then
+            echo "✓ deployment/node_modules EXISTS"
+            du -sh deployment/node_modules
+            ls deployment/node_modules | head -10
+          else
+            echo "ERROR: deployment/node_modules DOES NOT EXIST" >&2
+            exit 1
+          fi
+          
+          echo ""
+          echo "Total deployment folder size:"
+          du -sh deployment/
+          
       - name: Upload packaged artifact
         uses: actions/upload-artifact@v4
         with:
           name: node-app
-          path: deployment
+          path: deployment/
           retention-days: 1
           if-no-files-found: error
+          compression-level: 0
 
   deploy:
     runs-on: ubuntu-latest
