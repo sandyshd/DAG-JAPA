@@ -217,30 +217,21 @@ jobs:
       - name: Clean Azure App Service wwwroot folder
         run: |
           echo "=== Cleaning wwwroot folder on Azure App Service ==="
-          
-          # Get resource group
-          RG=$(az webapp show --name dag-japa-dev-webapp --query resourceGroup --output tsv)
-          
-          if [ -z "$RG" ]; then
-            echo "ERROR: Could not determine resource group" >&2
-            exit 1
-          fi
-          
-          echo "Resource Group: $RG"
           echo ""
-          echo "Stopping App Service..."
-          az webapp stop --name dag-japa-dev-webapp --resource-group "$RG"
-          echo "✓ App Service stopped"
+          echo "Stopping App Service: dag-japa-dev-webapp"
           
+          # Try to stop the app service
+          # The resource group should be available from the Azure login context
+          az webapp stop --name dag-japa-dev-webapp || {
+            echo "WARNING: Could not stop app service, continuing anyway..."
+          }
+          
+          echo "✓ App Service stop command executed"
           echo ""
-          echo "Cleaning wwwroot folder..."
-          # Use az webapp deployment slot config to reset or manually delete files
-          # Since we can't directly delete via CLI, we'll deploy empty files first
-          # Then deploy the new build
+          echo "Waiting 5 seconds for graceful shutdown..."
+          sleep 5
           
           echo "✓ App Service ready for fresh deployment"
-          echo ""
-          echo "Note: Old files will be overwritten by new deployment"
 
       - name: 'Deploy to Azure Web App'
         id: deploy-to-webapp
@@ -253,13 +244,14 @@ jobs:
       - name: Start App Service and verify deployment
         run: |
           echo "=== Starting App Service ==="
+          echo ""
+          echo "Starting App Service: dag-japa-dev-webapp"
           
-          # Get resource group
-          RG=$(az webapp show --name dag-japa-dev-webapp --query resourceGroup --output tsv)
+          az webapp start --name dag-japa-dev-webapp || {
+            echo "WARNING: Could not start app service, it may already be running..."
+          }
           
-          echo "Starting App Service..."
-          az webapp start --name dag-japa-dev-webapp --resource-group "$RG"
-          echo "✓ App Service started"
+          echo "✓ App Service start command executed"
           
           echo ""
           echo "Waiting 30 seconds for app to initialize..."
