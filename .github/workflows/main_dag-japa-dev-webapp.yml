@@ -74,16 +74,13 @@ jobs:
           echo ""
           echo "=== Creating fresh deployment directory ==="
           mkdir -p deployment
-          echo "Copying .next directory and application files (excluding node_modules)..."
-          cp -rv .next app lib prisma public types deployment/
+          echo "Copying .next directory and application files..."
+          cp -rv .next node_modules app lib prisma public types deployment/
           echo ""
           echo "Copying configuration and manifest files..."
-          cp -v package.json package-lock.json next.config.js tsconfig.json postcss.config.js tailwind.config.ts startup.sh deployment/
+          cp -v package.json package-lock.json next.config.js tsconfig.json postcss.config.js tailwind.config.ts deployment/
           echo ""
-          echo "Making startup script executable..."
-          chmod +x deployment/startup.sh
-          echo ""
-          echo "✓ Deployment package created (node_modules excluded)"
+          echo "✓ Deployment package created"
           echo ""
           echo "Contents of deployment directory:"
           du -sh deployment
@@ -119,15 +116,14 @@ jobs:
           tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_04843C08210343A59FD4C73E79F4E003 }}
           subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_FC9C86FE2DFC4F07B9C177FB9AE3D484 }}
 
-      - name: Deploy to Azure Web App (clean wwwroot first)
+      - name: Deploy to Azure Web App
         id: deploy-to-webapp
         uses: azure/webapps-deploy@v3
         with:
           app-name: 'dag-japa-dev-webapp'
           slot-name: 'Production'
-          clean: true   # ensures wwwroot is fully cleared before deployment
+          clean: false   # Keep existing files to preserve node_modules between deployments
           package: .
-          startup-command: './startup.sh'
 
       - name: Start App Service and verify deployment
         run: |
@@ -135,7 +131,12 @@ jobs:
           echo ""
           echo "Starting App Service: dag-japa-dev-webapp"
           
-          az webapp start --name dag-japa-dev-webapp || {
+          # Get the resource group for the app service
+          RESOURCE_GROUP=$(az webapp show --name dag-japa-dev-webapp --query resourceGroup -o tsv)
+          echo "Found resource group: $RESOURCE_GROUP"
+          echo ""
+          
+          az webapp start --name dag-japa-dev-webapp --resource-group "$RESOURCE_GROUP" || {
             echo "WARNING: Could not start app service, it may already be running..."
           }
           
