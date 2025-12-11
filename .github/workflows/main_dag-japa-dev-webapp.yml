@@ -74,96 +74,8 @@ jobs:
           echo ""
           echo "=== Creating fresh deployment directory ==="
           mkdir -p deployment
-          echo "✓ Fresh deployment directory created"
-          
-          echo ""
-          echo "=== Copying build output and dependencies ==="
-          
-          echo "Copying .next..."
-          if [ ! -d ".next" ]; then
-            echo "ERROR: .next not found in current directory!" >&2
-            ls -la
-            exit 1
-          fi
-          cp -rv .next deployment/ || exit 1
-          echo "✓ .next copied"
-          
-          echo ""
-          echo "Copying node_modules..."
-          if [ ! -d "node_modules" ]; then
-            echo "ERROR: node_modules not found in current directory!" >&2
-            exit 1
-          fi
-          cp -rv node_modules deployment/ || exit 1
-          echo "✓ node_modules copied"
-          
-          echo ""
-          echo "Copying source code and config files..."
-          cp -rv app deployment/ || exit 1
-          cp -rv lib deployment/ || exit 1
-          cp -rv prisma deployment/ || exit 1
-          cp -rv public deployment/ || exit 1
-          cp -rv types deployment/ || exit 1
-          cp -v package.json deployment/ || exit 1
-          cp -v package-lock.json deployment/ || exit 1
-          cp -v next.config.js deployment/ || exit 1
-          cp -v tsconfig.json deployment/ || exit 1
-          cp -v postcss.config.js deployment/ || exit 1
-          cp -v tailwind.config.ts deployment/ || exit 1
-          echo "✓ All files copied"
-          
-          echo ""
-          echo "=== Verifying deployment folder contents ==="
-          ls -lah deployment/
-          
-          echo ""
-          echo "=== Checking for critical files ==="
-          for file in .next node_modules package.json; do
-            if [ -e "deployment/$file" ]; then
-              size=$(du -sh "deployment/$file" 2>/dev/null | cut -f1)
-              echo "✓ deployment/$file ($size)"
-            else
-              echo "ERROR: deployment/$file NOT FOUND" >&2
-              exit 1
-            fi
-          done
-          
-          echo ""
-          echo "✓ Deployment package ready"
-          
-      - name: Verify deployment folder before upload
-        run: |
-          echo "=== Pre-upload verification ==="
-          echo ""
-          echo "Deployment folder contents:"
-          ls -lah deployment/
-          
-          echo ""
-          echo "Checking .next inside deployment:"
-          if [ -d "deployment/.next" ]; then
-            echo "✓ deployment/.next EXISTS"
-            du -sh deployment/.next
-            ls -la deployment/.next/ | head -20
-          else
-            echo "ERROR: deployment/.next DOES NOT EXIST" >&2
-            exit 1
-          fi
-          
-          echo ""
-          echo "Checking node_modules inside deployment:"
-          if [ -d "deployment/node_modules" ]; then
-            echo "✓ deployment/node_modules EXISTS"
-            du -sh deployment/node_modules
-            ls deployment/node_modules | head -10
-          else
-            echo "ERROR: deployment/node_modules DOES NOT EXIST" >&2
-            exit 1
-          fi
-          
-          echo ""
-          echo "Total deployment folder size:"
-          du -sh deployment/
-          
+          cp -rv .next node_modules app lib prisma public types package.json package-lock.json next.config.js tsconfig.json postcss.config.js tailwind.config.ts deployment/
+
       - name: Upload packaged artifact
         uses: actions/upload-artifact@v4
         with:
@@ -187,26 +99,6 @@ jobs:
         with:
           name: node-app
       
-      - name: Verify deployment files
-        run: |
-          echo "=== Verifying deployment files ==="
-          ls -la
-          
-          if [ ! -d ".next" ]; then
-            echo "ERROR: .next directory not found" >&2
-            exit 1
-          fi
-          echo "✓ .next directory found"
-          
-          if [ ! -d "node_modules" ]; then
-            echo "ERROR: node_modules directory not found" >&2
-            exit 1
-          fi
-          echo "✓ node_modules directory found"
-          
-          echo ""
-          echo "Ready for deployment to Azure"
-      
       - name: Login to Azure
         uses: azure/login@v2
         with:
@@ -214,15 +106,14 @@ jobs:
           tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_04843C08210343A59FD4C73E79F4E003 }}
           subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_FC9C86FE2DFC4F07B9C177FB9AE3D484 }}
 
-      - name: 'Deploy to Azure Web App'
+      - name: Deploy to Azure Web App (clean wwwroot first)
         id: deploy-to-webapp
         uses: azure/webapps-deploy@v3
         with:
           app-name: 'dag-japa-dev-webapp'
           slot-name: 'Production'
-           # Set this flag to true to delete extra files in wwwroot
-          removeAdditionalFilesFlag: true
           package: .
+          removeAdditionalFilesFlag: true   # ensures wwwroot is fully cleared before deployment
 
       - name: Start App Service and verify deployment
         run: |
@@ -244,4 +135,3 @@ jobs:
           echo ""
           echo "App should now be accessible at:"
           echo "https://dag-japa-dev-webapp.azurewebsites.net"
-          
