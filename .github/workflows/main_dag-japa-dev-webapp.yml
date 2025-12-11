@@ -78,7 +78,10 @@ jobs:
           cp -rv .next app lib prisma public types deployment/
           echo ""
           echo "Copying configuration and manifest files..."
-          cp -v package.json package-lock.json next.config.js tsconfig.json postcss.config.js tailwind.config.ts deployment/
+          cp -v package.json package-lock.json next.config.js tsconfig.json postcss.config.js tailwind.config.ts startup.sh deployment/
+          echo ""
+          echo "Making startup script executable..."
+          chmod +x deployment/startup.sh
           echo ""
           echo "✓ Deployment package created (node_modules excluded)"
           echo ""
@@ -124,7 +127,7 @@ jobs:
           slot-name: 'Production'
           clean: true   # ensures wwwroot is fully cleared before deployment
           package: .
-          startup-command: 'npm start'
+          startup-command: './startup.sh'
 
       - name: Start App Service and verify deployment
         run: |
