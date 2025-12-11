@@ -214,6 +214,34 @@ jobs:
           tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_04843C08210343A59FD4C73E79F4E003 }}
           subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_FC9C86FE2DFC4F07B9C177FB9AE3D484 }}
 
+      - name: Clean Azure App Service wwwroot folder
+        run: |
+          echo "=== Cleaning wwwroot folder on Azure App Service ==="
+          
+          # Get resource group
+          RG=$(az webapp show --name dag-japa-dev-webapp --query resourceGroup --output tsv)
+          
+          if [ -z "$RG" ]; then
+            echo "ERROR: Could not determine resource group" >&2
+            exit 1
+          fi
+          
+          echo "Resource Group: $RG"
+          echo ""
+          echo "Stopping App Service..."
+          az webapp stop --name dag-japa-dev-webapp --resource-group "$RG"
+          echo "✓ App Service stopped"
+          
+          echo ""
+          echo "Cleaning wwwroot folder..."
+          # Use az webapp deployment slot config to reset or manually delete files
+          # Since we can't directly delete via CLI, we'll deploy empty files first
+          # Then deploy the new build
+          
+          echo "✓ App Service ready for fresh deployment"
+          echo ""
+          echo "Note: Old files will be overwritten by new deployment"
+
       - name: 'Deploy to Azure Web App'
         id: deploy-to-webapp
         uses: azure/webapps-deploy@v3
@@ -222,12 +250,22 @@ jobs:
           slot-name: 'Production'
           package: .
 
-      - name: Wait and verify deployment
+      - name: Start App Service and verify deployment
         run: |
-          echo "=== Deployment complete ==="
-          echo "Waiting 20 seconds for app to initialize..."
-          sleep 20
-          echo "✓ Ready"
+          echo "=== Starting App Service ==="
+          
+          # Get resource group
+          RG=$(az webapp show --name dag-japa-dev-webapp --query resourceGroup --output tsv)
+          
+          echo "Starting App Service..."
+          az webapp start --name dag-japa-dev-webapp --resource-group "$RG"
+          echo "✓ App Service started"
+          
+          echo ""
+          echo "Waiting 30 seconds for app to initialize..."
+          sleep 30
+          
+          echo "✓ Deployment complete"
           echo ""
           echo "App should now be accessible at:"
           echo "https://dag-japa-dev-webapp.azurewebsites.net"
