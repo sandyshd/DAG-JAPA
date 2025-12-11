@@ -172,6 +172,7 @@ jobs:
           retention-days: 1
           if-no-files-found: error
           compression-level: 0
+          include-hidden-files: true
 
   deploy:
     runs-on: ubuntu-latest
