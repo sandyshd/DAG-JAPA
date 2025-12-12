@@ -132,9 +132,10 @@ jobs:
             --name dag-japa-dev-webapp \
             --resource-group "DAG-JAPA-Dev-RG" \
             --settings \
-              SCM_SKIP_ANTIVIRUS_SCAN=true \
+              SCM_DO_BUILD_DURING_DEPLOYMENT=false \
               ENABLE_ORYX_BUILD=false \
-              WEBSITE_SKIP_CONTENTSHARE=false
+              SCM_SKIP_ANTIVIRUS_SCAN=true \
+              WEBSITE_RUN_FROM_PACKAGE=0
           echo "✓ App Service settings configured"
 
       - name: Start App Service and verify deployment
