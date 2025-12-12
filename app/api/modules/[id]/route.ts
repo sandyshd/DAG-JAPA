@@ -34,15 +34,15 @@ export async function GET(
 
     console.log(`[API] Module found: ${module.name}`);
 
-    // Parse JSON fields safely
+    // Prisma returns JSONB as objects already, no need to parse
     const moduleData = {
       ...module,
-      benefits: module.benefits ? JSON.parse(module.benefits as string) : [],
-      requirements: module.requirements ? JSON.parse(module.requirements as string) : [],
-      process: module.process ? JSON.parse(module.process as string) : [],
-      testimonials: module.testimonials ? JSON.parse(module.testimonials as string) : [],
-      faqs: module.faqs ? JSON.parse(module.faqs as string) : [],
-      fields: module.fields ? JSON.parse(module.fields as string) : [],
+      benefits: module.benefits || [],
+      requirements: module.requirements || [],
+      process: module.process || [],
+      testimonials: module.testimonials || [],
+      faqs: module.faqs || [],
+      fields: module.fields || [],
     };
 
     return NextResponse.json({ success: true, data: moduleData });
