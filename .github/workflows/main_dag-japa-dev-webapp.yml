@@ -77,8 +77,8 @@ jobs:
           echo "Copying .next directory and application files..."
           cp -rv .next node_modules app lib prisma public types deployment/
           echo ""
-          echo "Copying configuration files..."
-          cp -v package.json package-lock.json next.config.js tsconfig.json postcss.config.js tailwind.config.ts deployment/
+          echo "Copying configuration files and build manifest..."
+          cp -v package.json package-lock.json next.config.js tsconfig.json postcss.config.js tailwind.config.ts .oryx-manifest.json deployment/
           echo ""
           echo "✓ Deployment package created"
           echo ""
@@ -124,6 +124,18 @@ jobs:
           slot-name: 'Production'
           clean: false   # Keep existing files to preserve deployed node_modules
           package: .
+
+      - name: Configure App Service settings to skip Oryx build
+        run: |
+          echo "=== Configuring Azure App Service to skip Oryx build process ==="
+          az webapp config appsettings set \
+            --name dag-japa-dev-webapp \
+            --resource-group "DAG-JAPA-Dev-RG" \
+            --settings \
+              SCM_SKIP_ANTIVIRUS_SCAN=true \
+              ENABLE_ORYX_BUILD=false \
+              WEBSITE_SKIP_CONTENTSHARE=false
+          echo "✓ App Service settings configured"
 
       - name: Start App Service and verify deployment
         run: |
