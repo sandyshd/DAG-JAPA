@@ -78,7 +78,7 @@ jobs:
           cp -rv .next node_modules app lib prisma public types deployment/
           echo ""
           echo "Copying configuration and manifest files..."
-          cp -v package.json package-lock.json next.config.js tsconfig.json postcss.config.js tailwind.config.ts deployment/
+          cp -v package.json package-lock.json next.config.js tsconfig.json postcss.config.js tailwind.config.ts .oryx-manifest.json deployment/
           echo ""
           echo "✓ Deployment package created"
           echo ""
