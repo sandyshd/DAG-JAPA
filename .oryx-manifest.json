@@ -1,7 +1,0 @@
-{
-  "version": 1,
-  "build": {
-    "nodeVersion": "22.20.0",
-    "npmVersion": "10.9.2"
-  }
-}

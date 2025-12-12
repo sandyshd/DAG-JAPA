@@ -74,11 +74,11 @@ jobs:
           echo ""
           echo "=== Creating fresh deployment directory ==="
           mkdir -p deployment
-          echo "Copying .next directory and application files..."
-          cp -rv .next node_modules app lib prisma public types deployment/
+          echo "Copying .next directory and application files (excluding node_modules)..."
+          cp -rv .next app lib prisma public types deployment/
           echo ""
-          echo "Copying configuration and manifest files..."
-          cp -v package.json package-lock.json next.config.js tsconfig.json postcss.config.js tailwind.config.ts .oryx-manifest.json deployment/
+          echo "Copying configuration files..."
+          cp -v package.json package-lock.json next.config.js tsconfig.json postcss.config.js tailwind.config.ts deployment/
           echo ""
           echo "✓ Deployment package created"
           echo ""
@@ -122,7 +122,7 @@ jobs:
         with:
           app-name: 'dag-japa-dev-webapp'
           slot-name: 'Production'
-          clean: false   # Keep existing files to preserve node_modules between deployments
+          clean: true   # Clean wwwroot to remove old tar.gz and corrupted node_modules
           package: .
 
       - name: Start App Service and verify deployment
@@ -130,13 +130,8 @@ jobs:
           echo "=== Starting App Service ==="
           echo ""
           echo "Starting App Service: dag-japa-dev-webapp"
-          
-          # Get the resource group for the app service
-          RESOURCE_GROUP=$(az webapp show --name dag-japa-dev-webapp --query resourceGroup -o tsv)
-          echo "Found resource group: $RESOURCE_GROUP"
-          echo ""
-          
-          az webapp start --name dag-japa-dev-webapp --resource-group "$RESOURCE_GROUP" || {
+           
+          az webapp start --name dag-japa-dev-webapp --resource-group "DAG-JAPA-Dev-RG" || {
             echo "WARNING: Could not start app service, it may already be running..."
           }
           
