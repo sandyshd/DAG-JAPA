@@ -74,8 +74,8 @@ jobs:
           echo ""
           echo "=== Creating fresh deployment directory ==="
           mkdir -p deployment
-          echo "Copying .next directory and application files (excluding node_modules)..."
-          cp -rv .next app lib prisma public types deployment/
+          echo "Copying .next directory and application files..."
+          cp -rv .next node_modules app lib prisma public types deployment/
           echo ""
           echo "Copying configuration files..."
           cp -v package.json package-lock.json next.config.js tsconfig.json postcss.config.js tailwind.config.ts deployment/
@@ -122,7 +122,7 @@ jobs:
         with:
           app-name: 'dag-japa-dev-webapp'
           slot-name: 'Production'
-          clean: true   # Clean wwwroot to remove old tar.gz and corrupted node_modules
+          clean: false   # Keep existing files to preserve deployed node_modules
           package: .
 
       - name: Start App Service and verify deployment
