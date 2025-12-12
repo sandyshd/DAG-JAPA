@@ -74,11 +74,11 @@ jobs:
           echo ""
           echo "=== Creating fresh deployment directory ==="
           mkdir -p deployment
-          echo "Copying .next directory and application files..."
-          cp -rv .next node_modules app lib prisma public types deployment/
+          echo "Copying .next directory and application files (excluding node_modules)..."
+          cp -rv .next app lib prisma public types deployment/
           echo ""
-          echo "Copying configuration files and build manifest..."
-          cp -v package.json package-lock.json next.config.js tsconfig.json postcss.config.js tailwind.config.ts .oryx-manifest.json deployment/
+          echo "Copying configuration files..."
+          cp -v package.json package-lock.json next.config.js tsconfig.json postcss.config.js tailwind.config.ts deployment/
           echo ""
           echo "✓ Deployment package created"
           echo ""
@@ -122,22 +122,8 @@ jobs:
         with:
           app-name: 'dag-japa-dev-webapp'
           slot-name: 'Production'
-          clean: false   # Keep existing files to preserve deployed node_modules
+          clean: true   # Clean wwwroot to remove old tar.gz and corrupted node_modules
           package: .
-          enable-oryx-build: false  # Prevent Azure from re-running Oryx build and packing node_modules
-
-      - name: Configure App Service settings to skip Oryx build
-        run: |
-          echo "=== Configuring Azure App Service to skip Oryx build process ==="
-          az webapp config appsettings set \
-            --name dag-japa-dev-webapp \
-            --resource-group "DAG-JAPA-Dev-RG" \
-            --settings \
-              SCM_DO_BUILD_DURING_DEPLOYMENT=false \
-              ENABLE_ORYX_BUILD=false \
-              SCM_SKIP_ANTIVIRUS_SCAN=true \
-              WEBSITE_RUN_FROM_PACKAGE=0
-          echo "✓ App Service settings configured"
 
       - name: Start App Service and verify deployment
         run: |
