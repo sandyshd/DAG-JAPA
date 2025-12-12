@@ -124,6 +124,7 @@ jobs:
           slot-name: 'Production'
           clean: false   # Keep existing files to preserve deployed node_modules
           package: .
+          enable-oryx-build: false  # Prevent Azure from re-running Oryx build and packing node_modules
 
       - name: Configure App Service settings to skip Oryx build
         run: |
