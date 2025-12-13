@@ -142,3 +142,20 @@ jobs:
           echo ""
           echo "App should now be accessible at:"
           echo "https://dag-japa-dev-webapp.azurewebsites.net"
+
+      - name: Install npm dependencies in Azure Web App and list files
+        run: |
+          echo "=== Installing npm dependencies in Azure Web App ==="
+          echo ""
+          echo "Changing directory to Azure Web App's runtime folder: home/site/wwwroot"
+          cd /home/site/wwwroot
+          
+          echo ""
+          echo "Listing contents of home/site/wwwroot folder..."
+          ls -la
+          
+          echo ""
+          echo "Running npm install in runtime folder..."
+          npm install --only=production
+          
+          echo "✓ npm dependencies installed successfully in Azure Web App runtime folder"
